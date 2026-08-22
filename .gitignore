@@ -1,0 +1,14 @@
+.DS_Store
+.env
+*.local
+
+# PocketBase runtime data and exported financial files must stay on the NAS.
+pb_data/
+pb_backups/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Local deployment artifacts
+deploy/.state/
+deploy/*.tar.gz

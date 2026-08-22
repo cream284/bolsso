@@ -1,0 +1,78 @@
+version: "2.4"
+
+services:
+  pocketbase:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PB_VERSION: "0.39.11"
+        PB_SHA256: "08b9fcda0d5fd42cb315dc15a36dfa121c993855bd635f01d347c31b4328ec34"
+    image: bolsso-pocketbase:0.39.11
+    container_name: bolsso-pocketbase
+    restart: unless-stopped
+    env_file:
+      - /volume1/docker/bolsso/secrets/runtime.env
+    command:
+      - serve
+      - --http=0.0.0.0:8080
+      - --dir=/pb/pb_data
+      - --hooksDir=/pb/pb_hooks
+      - --migrationsDir=/pb/pb_migrations
+      - --origins=https://cream284.github.io,http://localhost:8000,http://127.0.0.1:8000
+      - --encryptionEnv=PB_ENCRYPTION_KEY
+    ports:
+      - "127.0.0.1:18091:8080"
+    volumes:
+      - /volume1/docker/bolsso/data/pb_data:/pb/pb_data
+      - /volume1/docker/bolsso/current/backend/pb_hooks:/pb/pb_hooks:ro
+      - /volume1/docker/bolsso/current/backend/pb_migrations:/pb/pb_migrations:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 256m
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    image: caddy:2.11.4-alpine
+    container_name: bolsso-api
+    restart: unless-stopped
+    depends_on:
+      - pocketbase
+    ports:
+      - "127.0.0.1:18090:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    read_only: true
+    tmpfs:
+      - /config:size=16m,mode=0700
+      - /data:size=16m,mode=0700
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  internal:
+    driver: bridge

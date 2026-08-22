@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+ROOT=/volume1/docker/bolsso
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+if [ "$(id -u)" -ne 0 ]; then
+  printf '%s\n' "Run this installer with sudo." >&2
+  exit 1
+fi
+
+if [ ! -f "$SCRIPT_DIR/docker-compose.yml" ] || [ ! -f "$SCRIPT_DIR/pull-deploy.sh" ]; then
+  printf '%s\n' "The installer must stay beside the NAS deployment files." >&2
+  exit 1
+fi
+
+umask 077
+mkdir -p "$ROOT/runtime" "$ROOT/bin" "$ROOT/data/pb_data" "$ROOT/secrets" "$ROOT/state" "$ROOT/logs" "$ROOT/releases"
+
+install -o root -g root -m 0644 "$SCRIPT_DIR/Dockerfile" "$ROOT/runtime/Dockerfile"
+install -o root -g root -m 0644 "$SCRIPT_DIR/Caddyfile" "$ROOT/runtime/Caddyfile"
+install -o root -g root -m 0644 "$SCRIPT_DIR/docker-compose.yml" "$ROOT/runtime/docker-compose.yml"
+install -o root -g root -m 0755 "$SCRIPT_DIR/pull-deploy.sh" "$ROOT/bin/pull-deploy.sh"
+
+if [ ! -f "$ROOT/secrets/runtime.env" ]; then
+  ENCRYPTION_KEY="$(openssl rand -hex 32)"
+  printf 'PB_ENCRYPTION_KEY=%s\n' "$ENCRYPTION_KEY" >"$ROOT/secrets/runtime.env"
+fi
+chmod 0600 "$ROOT/secrets/runtime.env"
+chown -R 1000:1000 "$ROOT/data/pb_data"
+chown -R root:root "$ROOT/runtime" "$ROOT/bin" "$ROOT/secrets" "$ROOT/state" "$ROOT/logs" "$ROOT/releases"
+
+if ! /usr/local/bin/docker info >/dev/null 2>&1; then
+  /usr/syno/bin/synopkg start Docker || true
+fi
+
+attempt=1
+while ! /usr/local/bin/docker info >/dev/null 2>&1; do
+  if [ "$attempt" -ge 24 ]; then
+    printf '%s\n' "Docker did not become ready within 120 seconds." >&2
+    exit 1
+  fi
+  sleep 5
+  attempt=$((attempt + 1))
+done
+
+"$ROOT/bin/pull-deploy.sh"
+
+printf '%s\n' \
+  "Installation finished." \
+  "API health: http://127.0.0.1:18090/api/health" \
+  "Private admin: http://127.0.0.1:18091/_/" \
+  "Deploy log: $ROOT/logs/deploy.log"

@@ -35,6 +35,11 @@ fi
 unset ENCRYPTION_KEY
 chmod 0600 "$ROOT/secrets/runtime.env"
 chown -R 1000:1000 "$ROOT/data/pb_data"
+if [ -x /usr/syno/bin/synoacltool ]; then
+  find "$ROOT/data/pb_data" -depth -exec /usr/syno/bin/synoacltool -del {} \; >/dev/null 2>&1 || true
+fi
+find "$ROOT/data/pb_data" -type d -exec chmod 0700 {} \;
+find "$ROOT/data/pb_data" -type f -exec chmod 0600 {} \;
 chown -R root:root "$ROOT/runtime" "$ROOT/bin" "$ROOT/secrets" "$ROOT/state" "$ROOT/logs" "$ROOT/releases"
 
 if ! /usr/local/bin/docker info >/dev/null 2>&1; then

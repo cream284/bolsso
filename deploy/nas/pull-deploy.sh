@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+
 ROOT=/volume1/docker/bolsso
 REPOSITORY=cream284/bolsso
 BRANCH=main

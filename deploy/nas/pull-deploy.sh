@@ -36,7 +36,7 @@ fi
 
 API_URL="https://api.github.com/repos/$REPOSITORY/commits/$BRANCH"
 REMOTE_JSON="$(curl -fsSL --connect-timeout 15 --max-time 60 -H 'Accept: application/vnd.github+json' -H 'User-Agent: bolsso-nas-deployer' "$API_URL")"
-REMOTE_SHA="$(printf '%s\n' "$REMOTE_JSON" | sed -n 's/^[[:space:]]*"sha":[[:space:]]*"\([0-9a-f]\{40\}\)".*/\1/p' | sed -n '1p')"
+REMOTE_SHA="$(printf '%s' "$REMOTE_JSON" | tr -d '\r\n' | cut -d '"' -f 4)"
 
 case "$REMOTE_SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;

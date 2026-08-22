@@ -111,6 +111,14 @@ done
 
 if [ "$HEALTHY" -ne 1 ]; then
   log "ERROR: health check failed; restoring the previous release"
+  printf '%s\n' "--- container status ---"
+  "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" ps || true
+  printf '%s\n' "--- proxy health response ---"
+  curl -sS -i --max-time 5 http://127.0.0.1:18090/api/health || true
+  printf '\n%s\n' "--- direct PocketBase health response ---"
+  curl -sS -i --max-time 5 http://127.0.0.1:18091/api/health || true
+  printf '\n%s\n' "--- container logs ---"
+  "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" logs --no-color --tail=120 || true
   if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
     ln -sfn "$PREVIOUS_RELEASE" "$ROOT/current"
     "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --remove-orphans || true

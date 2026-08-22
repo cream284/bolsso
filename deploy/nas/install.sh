@@ -23,9 +23,16 @@ install -o root -g root -m 0644 "$SCRIPT_DIR/docker-compose.yml" "$ROOT/runtime/
 install -o root -g root -m 0755 "$SCRIPT_DIR/pull-deploy.sh" "$ROOT/bin/pull-deploy.sh"
 
 if [ ! -f "$ROOT/secrets/runtime.env" ]; then
-  ENCRYPTION_KEY="$(openssl rand -hex 32)"
+  ENCRYPTION_KEY="$(openssl rand -hex 16)"
   printf 'PB_ENCRYPTION_KEY=%s\n' "$ENCRYPTION_KEY" >"$ROOT/secrets/runtime.env"
+elif [ ! -f "$ROOT/state/deployed.sha" ]; then
+  ENCRYPTION_KEY="$(sed -n 's/^PB_ENCRYPTION_KEY=//p' "$ROOT/secrets/runtime.env")"
+  if [ "${#ENCRYPTION_KEY}" -ne 32 ]; then
+    ENCRYPTION_KEY="$(openssl rand -hex 16)"
+    printf 'PB_ENCRYPTION_KEY=%s\n' "$ENCRYPTION_KEY" >"$ROOT/secrets/runtime.env"
+  fi
 fi
+unset ENCRYPTION_KEY
 chmod 0600 "$ROOT/secrets/runtime.env"
 chown -R 1000:1000 "$ROOT/data/pb_data"
 chown -R root:root "$ROOT/runtime" "$ROOT/bin" "$ROOT/secrets" "$ROOT/state" "$ROOT/logs" "$ROOT/releases"

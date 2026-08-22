@@ -38,10 +38,10 @@ API_URL="https://api.github.com/repos/$REPOSITORY/commits/$BRANCH"
 REMOTE_JSON="$(curl -fsSL --connect-timeout 15 --max-time 60 -H 'Accept: application/vnd.github+json' -H 'User-Agent: bolsso-nas-deployer' "$API_URL")"
 REMOTE_SHA="$(printf '%s' "$REMOTE_JSON" | tr -d '\r\n' | cut -d '"' -f 4)"
 
-case "$REMOTE_SHA" in
-  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
-  *) log "ERROR: GitHub returned an invalid commit SHA"; exit 1 ;;
-esac
+if [ "${#REMOTE_SHA}" -ne 40 ] || printf '%s' "$REMOTE_SHA" | grep -q '[^0-9a-f]'; then
+  log "ERROR: GitHub returned an invalid commit SHA"
+  exit 1
+fi
 
 DEPLOYED_SHA=""
 if [ -f "$STATE_FILE" ]; then

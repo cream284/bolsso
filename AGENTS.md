@@ -9,6 +9,8 @@ authentication, or private infrastructure data.
   birth dates, account identifiers, or profile exports
 - Dues records, bank statements, transaction exports, balances tied to people,
   or uploaded spreadsheets containing real data
+- Private meeting documents such as bylaws PDFs, bank screenshots, OCR inputs,
+  or extracted OCR results
 - Passwords, API tokens, cookies, session values, encryption keys, SSH keys, or
   environment files
 - NAS LAN addresses, private hostnames, QuickConnect identifiers, DSM account
@@ -20,7 +22,8 @@ authentication, or private infrastructure data.
 
 - Use clearly synthetic labels such as `샘플 회원`, `샘플 모임`, and
   `예시 장소` in code, fixtures, screenshots, and documentation.
-- Keep runtime data and secrets only on the NAS in ignored paths.
+- Keep runtime data, secrets, private documents, and uploaded files only on the
+  NAS in ignored paths.
 - Run `scripts/privacy-check.sh` before every commit and before publication.
 - Stop and request review whenever a value could identify a real person or
   private system.

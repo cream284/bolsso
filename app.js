@@ -237,7 +237,10 @@ function renderTransactions(items) {
 function renderRule(items) {
   latestRule = items[0] || null;
   const button = $('#openRules');
+  const documentButton = $('#openRuleDocument');
   button.disabled = !latestRule;
+  documentButton.hidden = !latestRule?.document;
+  $('#ruleDocumentMessage').textContent = '';
   if (!latestRule) return;
   const text = plainText(latestRule.content);
   $('#ruleTitle').textContent = latestRule.title;
@@ -245,6 +248,35 @@ function renderRule(items) {
   $('#rulesModalTitle').textContent = latestRule.title;
   $('#rulesModalMeta').textContent = [latestRule.version, formatDate(latestRule.effectiveDate)].filter(Boolean).join(' · ');
   $('#rulesModalContent').textContent = text;
+}
+
+async function openProtectedRuleDocument() {
+  if (!latestRule?.document) return;
+  const button = $('#openRuleDocument');
+  const message = $('#ruleDocumentMessage');
+  button.disabled = true;
+  button.textContent = 'PDF 준비 중…';
+  message.textContent = '';
+
+  const preview = window.open('about:blank', '_blank');
+  if (preview) preview.opener = null;
+
+  try {
+    const { token } = await apiRequest('/api/files/token', { method: 'POST' });
+    if (!token) throw new Error('FILE_TOKEN_FAILED');
+    const collection = encodeURIComponent(latestRule.collectionId || 'rules');
+    const record = encodeURIComponent(latestRule.id);
+    const filename = encodeURIComponent(latestRule.document);
+    const url = `${API_BASE}/api/files/${collection}/${record}/${filename}?token=${encodeURIComponent(token)}`;
+    if (preview) preview.location.replace(url);
+    else window.location.assign(url);
+  } catch (error) {
+    if (preview) preview.close();
+    if (error.message !== 'SESSION_EXPIRED') message.textContent = 'PDF를 열지 못했습니다. 잠시 후 다시 시도해 주세요.';
+  } finally {
+    button.disabled = false;
+    button.textContent = 'PDF 원문 보기';
+  }
 }
 
 async function loadDashboard() {
@@ -314,6 +346,8 @@ $('#logoutButton').addEventListener('click', () => {
 $('#openRules').addEventListener('click', () => {
   if (latestRule) rulesModal.showModal();
 });
+
+$('#openRuleDocument').addEventListener('click', openProtectedRuleDocument);
 
 document.querySelectorAll('.close-dialog').forEach((button) => {
   button.addEventListener('click', () => button.closest('dialog').close());

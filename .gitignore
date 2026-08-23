@@ -8,6 +8,10 @@ pb_backups/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.pdf
+private_data/
+runtime_uploads/
+ocr_output/
 
 # Local deployment artifacts
 deploy/.state/

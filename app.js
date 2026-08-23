@@ -249,26 +249,33 @@ function renderRule(items) {
 
 async function loadDashboard() {
   setConnection(false, 'NAS 연결 확인 중');
-  try {
-    const [members, periods, dues, transactions, rules] = await Promise.all([
-      apiRequest(listPath('member_directory', { sort: 'name' })),
-      apiRequest(listPath('dues_periods', { sort: '-year,-month' })),
-      apiRequest(listPath('member_dues_status', { sort: 'memberName' })),
-      apiRequest(listPath('transactions', { sort: '-transactedAt', perPage: '20' })),
-      apiRequest(listPath('rules', { sort: '-effectiveDate', filter: 'published = true', perPage: '1' }))
-    ]);
-    const currentPeriod = periods.items.find((item) => item.status === 'open') || periods.items[0] || null;
-    renderMembers(members.items);
-    renderDues(currentPeriod, dues.items);
-    renderTransactions(transactions.items);
-    renderRule(rules.items);
+  const requests = [
+    ['회원 목록', apiRequest(listPath('member_directory', { sort: 'name' }))],
+    ['회비 기간', apiRequest(listPath('dues_periods', { sort: '-year,-month' }))],
+    ['납부 현황', apiRequest(listPath('member_dues_status', { sort: 'memberName' }))],
+    ['회비 사용', apiRequest(listPath('transactions', { sort: '-transactedAt', perPage: '20' }))],
+    ['운영 규약', apiRequest(listPath('rules', { sort: '-effectiveDate', filter: 'published = true', perPage: '1' }))]
+  ];
+  const results = await Promise.allSettled(requests.map(([, request]) => request));
+  if (!auth || results.some((result) => result.status === 'rejected' && result.reason?.message === 'SESSION_EXPIRED')) return;
+
+  const items = results.map((result) => result.status === 'fulfilled' ? result.value.items : []);
+  const [members, periods, dues, transactions, rules] = items;
+  const currentPeriod = periods.find((item) => item.status === 'open') || periods[0] || null;
+  renderMembers(members);
+  renderDues(currentPeriod, dues);
+  renderTransactions(transactions);
+  renderRule(rules);
+
+  const failures = results.flatMap((result, index) => result.status === 'rejected' ? [requests[index][0]] : []);
+  if (!failures.length) {
     setConnection(true, 'NAS 연결됨');
     $('#lastUpdated').textContent = `${new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit' }).format(new Date())} 기준 NAS 데이터`;
-  } catch (error) {
-    if (error.message === 'SESSION_EXPIRED') return;
-    setConnection(false, 'NAS 연결 오류');
-    $('#lastUpdated').textContent = '데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
+    return;
   }
+
+  setConnection(false, failures.length === requests.length ? 'NAS 연결 오류' : '일부 데이터 오류');
+  $('#lastUpdated').textContent = `불러오지 못한 항목: ${failures.join(', ')}`;
 }
 
 loginForm.addEventListener('submit', async (event) => {

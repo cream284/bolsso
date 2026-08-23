@@ -255,7 +255,7 @@ async function loadDashboard() {
       apiRequest(listPath('dues_periods', { sort: '-year,-month' })),
       apiRequest(listPath('member_dues_status', { sort: 'memberName' })),
       apiRequest(listPath('transactions', { sort: '-transactedAt', perPage: '20' })),
-      apiRequest(listPath('rules', { sort: '-effectiveDate,-created', filter: 'published = true', perPage: '1' }))
+      apiRequest(listPath('rules', { sort: '-effectiveDate', filter: 'published = true', perPage: '1' }))
     ]);
     const currentPeriod = periods.items.find((item) => item.status === 'open') || periods.items[0] || null;
     renderMembers(members.items);

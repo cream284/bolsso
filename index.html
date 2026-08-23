@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=Gowun+Dodum&amp;family=Playfair+Display:ital,wght@0,600;0,700;1,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=auth-20260823" />
+    <link rel="stylesheet" href="styles.css?v=operations-20260824" />
   </head>
   <body>
     <section class="login-view" id="loginView">
@@ -62,6 +62,10 @@
           <a class="nav-link" href="#dues"><span>◉</span> 회비 현황</a>
           <a class="nav-link" href="#members"><span>♧</span> 멤버</a>
           <a class="nav-link" href="#rules"><span>▤</span> 운영 규약</a>
+          <a class="nav-link" id="adminNav" href="#adminPanel" hidden><span>⚙</span> 관리자</a>
+          <a class="nav-link" id="chairNav" href="#chairPanel" hidden><span>◌</span> 회장</a>
+          <a class="nav-link" id="treasurerNav" href="#treasurerPanel" hidden><span>₩</span> 총무</a>
+          <a class="nav-link" id="auditNav" href="#auditPanel" hidden><span>◷</span> 감사 로그</a>
         </nav>
         <div class="sidebar-bottom">
           <div class="workspace"><span class="avatar tiny" id="sidebarAvatar">회</span><span><strong id="sidebarName">회원</strong><small id="sidebarRole">일반 회원</small></span></div>
@@ -117,6 +121,112 @@
             <div><span class="eyebrow">OUR PROMISE</span><h2 id="ruleTitle">게시된 운영 규약이 없습니다.</h2><p id="ruleSummary">운영진이 규약을 게시하면 이곳에서 확인할 수 있습니다.</p></div>
             <button class="rule-link" id="openRules" type="button" disabled>운영 규약 살펴보기 <span>→</span></button>
           </section>
+
+          <section class="operation-panel" id="adminPanel" hidden>
+            <div class="section-title"><span class="label-dot"></span><h2>관리자 · 회원과 운영진</h2></div>
+            <p class="operation-note">회원 계정·상태·직책을 관리합니다. 임시 비밀번호는 저장하거나 감사 로그에 남기지 않습니다.</p>
+            <div class="operation-grid">
+              <form class="management-form" id="memberCreateForm">
+                <h3>회원 발급</h3>
+                <label>이름<input name="name" maxlength="60" required /></label>
+                <label>로그인 ID<input name="loginId" pattern="[a-z0-9][a-z0-9._-]{3,39}" autocapitalize="none" required /></label>
+                <label>임시 비밀번호<input name="password" type="password" minlength="8" autocomplete="new-password" required /></label>
+                <label>현재 직책<select name="role"><option value="member">회원</option><option value="chair">회장</option><option value="treasurer">총무</option></select></label>
+                <button class="primary-button" type="submit">회원 발급</button><p class="form-message" data-message></p>
+              </form>
+              <form class="management-form" id="memberUpdateForm">
+                <h3>회원 상태·직책 변경</h3>
+                <label>회원<select name="memberId" id="adminMemberSelect" required></select></label>
+                <label>직책<select name="role"><option value="member">회원</option><option value="chair">회장</option><option value="treasurer">총무</option></select></label>
+                <label class="check-label"><input name="active" type="checkbox" checked /> 활성 회원</label>
+                <label class="check-label"><input name="isAdmin" type="checkbox" /> 시스템 관리자</label>
+                <button class="primary-button" type="submit">변경 저장</button><p class="form-message" data-message></p>
+              </form>
+              <form class="management-form" id="passwordResetForm">
+                <h3>비밀번호 초기화</h3>
+                <label>회원<select name="memberId" id="resetMemberSelect" required></select></label>
+                <label>새 임시 비밀번호<input name="password" type="password" minlength="8" autocomplete="new-password" required /></label>
+                <button class="primary-button" type="submit">초기화</button><p class="form-message" data-message></p>
+              </form>
+              <form class="management-form" id="termCreateForm">
+                <h3>연도별 운영진 임기</h3>
+                <label>연도<input name="year" type="number" min="2020" max="2100" required /></label>
+                <label>직책<select name="office"><option value="chair">회장</option><option value="treasurer">총무</option></select></label>
+                <label>회원<select name="member" id="termMemberSelect" required></select></label>
+                <button class="primary-button" type="submit">1월~12월 임기 등록</button><p class="form-message" data-message></p>
+              </form>
+            </div>
+            <div class="management-list"><h3>운영진 임기 이력</h3><div id="termList" class="record-list"></div></div>
+          </section>
+
+          <section class="operation-panel" id="chairPanel" hidden>
+            <div class="section-title"><span class="label-dot"></span><h2>회장 · 규약과 확정 장부</h2></div>
+            <div class="operation-grid chair-grid">
+              <form class="management-form" id="ruleManageForm">
+                <h3>운영 규약 게시</h3>
+                <label>제목<input name="title" maxlength="120" required /></label>
+                <label>버전<input name="version" maxlength="30" required placeholder="예: 2026.1" /></label>
+                <label>시행일<input name="effectiveDate" type="date" required /></label>
+                <label>내용<textarea name="content" rows="7" required></textarea></label>
+                <label>NAS PDF 원문<input name="document" type="file" accept="application/pdf" /></label>
+                <label class="check-label"><input name="published" type="checkbox" checked /> 회원에게 게시</label>
+                <button class="primary-button" type="submit">규약 저장</button><p class="form-message" data-message></p>
+              </form>
+              <section class="management-list"><h3>확정 회계 장부 · 읽기 전용</h3><div id="chairLedgerList" class="record-list"></div></section>
+            </div>
+          </section>
+
+          <section class="operation-panel" id="treasurerPanel" hidden>
+            <div class="section-title"><span class="label-dot"></span><h2>총무 · 회비와 수동 장부</h2></div>
+            <p class="operation-note">카카오뱅크 화면은 선택적으로 NAS에만 증빙으로 보관합니다. 송금자 등 민감한 원문은 회원 공개 내역에 포함되지 않습니다.</p>
+            <div class="operation-grid">
+              <form class="management-form" id="policyCreateForm">
+                <h3>연도 회비 정책</h3>
+                <label>적용 연도<input name="year" type="number" min="2020" max="2100" required /></label>
+                <label>월납 금액<input name="monthlyAmount" type="number" min="0" required /></label>
+                <label>연납 금액<input name="annualAmount" type="number" min="0" required /></label>
+                <label>납부일<input name="dueDay" type="number" min="1" max="31" required /></label>
+                <button class="primary-button" type="submit">정책 저장</button><p class="form-message" data-message></p>
+              </form>
+              <form class="management-form" id="periodCreateForm">
+                <h3>회비 기간 생성</h3>
+                <label>정책<select name="policy" id="policySelect" required></select></label>
+                <label>방식<select name="billingType" id="billingType"><option value="monthly">월납</option><option value="annual">연납</option></select></label>
+                <label>월(연납은 연간 전용 기간으로 자동 설정)<input name="month" id="periodMonth" type="number" min="1" max="13" value="1" required /></label>
+                <label>납부 기한<input name="dueDate" type="date" required /></label>
+                <button class="primary-button" type="submit">기간·납부행 생성</button><p class="form-message" data-message></p>
+              </form>
+              <form class="management-form" id="paymentUpdateForm">
+                <h3>회원별 납부 상태</h3>
+                <label>납부 행<select name="paymentId" id="paymentSelect" required></select></label>
+                <label>상태<select name="status"><option value="unpaid">미납</option><option value="paid">납부</option><option value="exempt">면제</option></select></label>
+                <button class="primary-button" type="submit">상태 저장</button><p class="form-message" data-message></p>
+              </form>
+              <form class="management-form" id="transactionCreateForm">
+                <h3>수입·지출 수동 등록</h3>
+                <label>거래일<input name="transactedAt" type="date" required /></label>
+                <label>구분<select name="type"><option value="income">수입</option><option value="expense">지출</option></select></label>
+                <label>항목<input name="category" maxlength="80" required /></label>
+                <label>금액<input name="amount" type="number" min="0" required /></label>
+                <label>거래 후 잔액<input name="balanceAfter" type="number" min="0" /></label>
+                <label>내부 메모<textarea name="memo" rows="3"></textarea></label>
+                <label>카카오뱅크 증빙(선택)<input name="evidence" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" /></label>
+                <label class="check-label"><input name="visibleToMembers" type="checkbox" checked /> 회원 공개</label>
+                <button class="primary-button" type="submit">초안 장부 등록</button><p class="form-message" data-message></p>
+              </form>
+              <form class="management-form" id="transactionConfirmForm">
+                <h3>장부 확정</h3>
+                <label>초안 거래<select name="transactionId" id="transactionSelect" required></select></label>
+                <button class="primary-button" type="submit">확정 장부로 전환</button><p class="form-message" data-message></p>
+              </form>
+            </div>
+          </section>
+
+          <section class="operation-panel" id="auditPanel" hidden>
+            <div class="section-title"><span class="label-dot"></span><h2>감사 로그</h2></div>
+            <p class="operation-note">비밀번호·증빙 파일·원문 데이터는 기록하지 않고, 변경 대상과 변경된 항목 이름만 남깁니다.</p>
+            <div id="auditList" class="record-list"></div>
+          </section>
         </section>
       </main>
     </div>
@@ -127,6 +237,6 @@
       <button class="primary-button rule-document-button" id="openRuleDocument" type="button" hidden>PDF 원문 보기</button>
       <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
     </dialog>
-    <script src="app.js?v=password-min-8-20260824"></script>
+    <script src="app.js?v=roles-operations-20260824"></script>
   </body>
 </html>

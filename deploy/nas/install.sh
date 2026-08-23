@@ -56,7 +56,7 @@ while ! /usr/local/bin/docker info >/dev/null 2>&1; do
   attempt=$((attempt + 1))
 done
 
-if ! "$ROOT/bin/pull-deploy.sh"; then
+if ! BOLSSO_FORCE_DEPLOY=1 "$ROOT/bin/pull-deploy.sh"; then
   printf '%s\n' "Deployment failed. Recent deploy log:" >&2
   tail -n 80 "$ROOT/logs/deploy.log" >&2 || true
   exit 1

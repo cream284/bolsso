@@ -51,7 +51,8 @@ if [ -f "$STATE_FILE" ]; then
   DEPLOYED_SHA="$(sed -n '1p' "$STATE_FILE")"
 fi
 
-if [ "$REMOTE_SHA" = "$DEPLOYED_SHA" ]; then
+FORCE_DEPLOY="${BOLSSO_FORCE_DEPLOY:-0}"
+if [ "$REMOTE_SHA" = "$DEPLOYED_SHA" ] && [ "$FORCE_DEPLOY" != "1" ]; then
   exit 0
 fi
 
@@ -86,11 +87,11 @@ if [ -L "$ROOT/current" ]; then
 fi
 ln -sfn "$RELEASE" "$ROOT/current"
 
-if ! "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --build --remove-orphans; then
+if ! "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --build --force-recreate --remove-orphans; then
   log "ERROR: container build or start failed"
   if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
     ln -sfn "$PREVIOUS_RELEASE" "$ROOT/current"
-    "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --remove-orphans || true
+    "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans || true
   else
     rm -f "$ROOT/current"
     "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" down || true
@@ -121,7 +122,7 @@ if [ "$HEALTHY" -ne 1 ]; then
   "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" logs --no-color --tail=120 || true
   if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
     ln -sfn "$PREVIOUS_RELEASE" "$ROOT/current"
-    "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --remove-orphans || true
+    "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans || true
   else
     rm -f "$ROOT/current"
     "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" down || true

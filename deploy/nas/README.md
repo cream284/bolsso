@@ -26,10 +26,14 @@ Create a **Scheduled Task → User-defined script** with these values:
 - Command: `/volume1/docker/bolsso/bin/pull-deploy.sh`
 
 The deployer compares the GitHub commit SHA, downloads a release only when it
-changed, starts the containers, checks `/api/health`, and restores the previous
-code release if the health check fails. Database migrations should therefore be
-additive and backward-compatible; code rollback does not restore a database
-snapshot.
+changed, recreates the containers so PocketBase applies every new migration,
+checks `/api/health`, and restores the previous code release if the health check
+fails. Database migrations should therefore be additive and
+backward-compatible; code rollback does not restore a database snapshot.
+
+Running the installer again updates only these fixed deployment files and
+forces one safe container recreation. Existing NAS secrets and database files
+are preserved.
 
 ## Local-only ports
 

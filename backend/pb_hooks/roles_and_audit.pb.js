@@ -10,7 +10,7 @@ function registerAudit(names) {
       const body = info.body || {}
       if (info.method === "POST") action = "create"
       if (info.method === "DELETE") action = "delete"
-      const excluded = { password: true, passwordConfirm: true, oldPassword: true, evidence: true, document: true, originalFile: true }
+      const excluded = { password: true, passwordConfirm: true, oldPassword: true, evidence: true, document: true, sourceDocument: true, originalFile: true }
       for (const key in body) {
         if (!excluded[key]) fields.push(key)
       }
@@ -50,6 +50,23 @@ function registerAudit(names) {
 
 const auditedCollections = ["members", "officer_terms", "dues_policies", "dues_periods", "dues_payments", "transactions", "rules"]
 registerAudit(auditedCollections)
+
+onRecordAfterCreateSuccess(function (event) {
+  event.next()
+  if (!event.record.getBool("published")) return
+  const olderPublished = event.app.findRecordsByFilter(
+    "rules",
+    "published = true && id != {:id}",
+    "",
+    0,
+    0,
+    { id: event.record.id }
+  )
+  for (const record of olderPublished) {
+    record.set("published", false)
+    event.app.save(record)
+  }
+}, "rules")
 
 onRecordCreateRequest(function (event) {
   event.record.set("createdBy", event.auth.id)

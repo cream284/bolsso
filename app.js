@@ -169,6 +169,61 @@ function plainText(html) {
   return parsed.body.textContent?.trim() || '';
 }
 
+function ruleMarkdown(rule) {
+  return String(rule?.contentMarkdown || rule?.content || '').trim();
+}
+
+function appendMarkdownInline(target, value) {
+  const parts = String(value).split(/(\*\*[^*]+\*\*)/g);
+  parts.forEach((part) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      const strong = document.createElement('strong');
+      strong.textContent = part.slice(2, -2);
+      target.append(strong);
+    } else target.append(document.createTextNode(part));
+  });
+}
+
+function renderMarkdown(target, source) {
+  target.replaceChildren();
+  const lines = String(source || '').replace(/\r/g, '').split('\n');
+  let list = null;
+  let listType = '';
+  const closeList = () => { list = null; listType = ''; };
+  const addTextBlock = (tag, text) => {
+    const node = document.createElement(tag);
+    appendMarkdownInline(node, text);
+    target.append(node);
+  };
+
+  lines.forEach((line) => {
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (heading) {
+      closeList();
+      addTextBlock(`h${heading[1].length}`, heading[2]);
+    } else if (line.trim() === '---') {
+      closeList();
+      target.append(document.createElement('hr'));
+    } else if (bullet || ordered) {
+      const nextType = bullet ? 'ul' : 'ol';
+      if (!list || listType !== nextType) {
+        closeList();
+        list = document.createElement(nextType);
+        listType = nextType;
+        target.append(list);
+      }
+      const item = document.createElement('li');
+      appendMarkdownInline(item, (bullet || ordered)[1]);
+      list.append(item);
+    } else if (line.trim()) {
+      closeList();
+      addTextBlock('p', line);
+    } else closeList();
+  });
+}
+
 function setConnection(ok, text) {
   const state = $('#connectionState');
   state.textContent = text;
@@ -280,20 +335,22 @@ function renderRule(items) {
   latestRule = items[0] || null;
   const button = $('#openRules');
   const documentButton = $('#openRuleDocument');
+  const sourceDocument = latestRule?.sourceDocument || latestRule?.document;
   button.disabled = !latestRule;
-  documentButton.hidden = !latestRule?.document;
+  documentButton.hidden = !sourceDocument;
   $('#ruleDocumentMessage').textContent = '';
   if (!latestRule) return;
-  const text = plainText(latestRule.content);
+  const text = ruleMarkdown(latestRule);
   $('#ruleTitle').textContent = latestRule.title;
   $('#ruleSummary').textContent = text.slice(0, 120) || '운영 규약 내용을 확인해 주세요.';
   $('#rulesModalTitle').textContent = latestRule.title;
   $('#rulesModalMeta').textContent = [latestRule.version, formatDate(latestRule.effectiveDate)].filter(Boolean).join(' · ');
-  $('#rulesModalContent').textContent = text;
+  renderMarkdown($('#rulesModalContent'), text);
 }
 
 async function openProtectedRuleDocument() {
-  if (!latestRule?.document) return;
+  const filename = latestRule?.sourceDocument || latestRule?.document;
+  if (!filename) return;
   const button = $('#openRuleDocument');
   const message = $('#ruleDocumentMessage');
   button.disabled = true;
@@ -308,8 +365,7 @@ async function openProtectedRuleDocument() {
     if (!token) throw new Error('FILE_TOKEN_FAILED');
     const collection = encodeURIComponent(latestRule.collectionId || 'rules');
     const record = encodeURIComponent(latestRule.id);
-    const filename = encodeURIComponent(latestRule.document);
-    const url = `${API_BASE}/api/files/${collection}/${record}/${filename}?token=${encodeURIComponent(token)}`;
+    const url = `${API_BASE}/api/files/${collection}/${record}/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`;
     if (preview) preview.location.replace(url);
     else window.location.assign(url);
   } catch (error) {
@@ -352,7 +408,7 @@ async function loadDashboard() {
   $('#lastUpdated').textContent = `불러오지 못한 항목: ${failures.join(', ')}`;
 }
 
-let operationData = { members: [], directory: [], terms: [], policies: [], periods: [], payments: [], transactions: [], audits: [] };
+let operationData = { members: [], directory: [], terms: [], policies: [], periods: [], payments: [], transactions: [], audits: [], rules: [] };
 
 function toPbDate(value) {
   return value ? `${value} 00:00:00.000Z` : '';
@@ -421,6 +477,24 @@ function renderChairLedger(items) {
   });
 }
 
+function renderRuleRevisions(items) {
+  const list = $('#ruleRevisionList');
+  list.replaceChildren();
+  if (!items.length) return appendEmpty(list, '아직 규약 개정 이력이 없습니다.');
+  items.forEach((rule) => {
+    const row = document.createElement('div');
+    row.className = 'record-row';
+    const info = document.createElement('span');
+    const title = document.createElement('strong');
+    title.textContent = `${rule.version || '버전 없음'} · ${rule.title}`;
+    const detail = document.createElement('small');
+    detail.textContent = [rule.published ? '현재 게시본' : '이력', formatDate(rule.effectiveDate), rule.revisionNote].filter(Boolean).join(' · ');
+    info.append(title, detail);
+    row.append(info);
+    list.append(row);
+  });
+}
+
 function renderAudit(items) {
   const list = $('#auditList');
   list.replaceChildren();
@@ -446,6 +520,18 @@ function renderOperationControls() {
   setOptions($('#adminMemberSelect'), members, (member) => `${member.name} · ${member.loginId}`);
   setOptions($('#resetMemberSelect'), members, (member) => `${member.name} · ${member.loginId}`);
   setOptions($('#termMemberSelect'), activeMembers, (member) => `${member.name} · ${member.loginId}`);
+  const revisionSelect = $('#previousRevisionSelect');
+  revisionSelect.replaceChildren();
+  const firstOption = document.createElement('option');
+  firstOption.value = '';
+  firstOption.textContent = '새 제정 (이전 개정본 없음)';
+  revisionSelect.append(firstOption);
+  operationData.rules.forEach((rule) => {
+    const option = document.createElement('option');
+    option.value = rule.id;
+    option.textContent = `${rule.version || '버전 없음'} · ${rule.title}`;
+    revisionSelect.append(option);
+  });
   setOptions($('#policySelect'), operationData.policies, (policy) => `${policy.year}년 정책`);
   setOptions($('#paymentSelect'), operationData.payments, (payment) => {
     const member = members.find((item) => item.id === payment.member);
@@ -454,6 +540,7 @@ function renderOperationControls() {
   });
   setOptions($('#transactionSelect'), operationData.transactions.filter((item) => item.entryStatus === 'draft'), (item) => `${formatDate(item.transactedAt)} · ${item.category} · ${formatWon(item.amount)}`);
   renderTerms(operationData.terms);
+  renderRuleRevisions(operationData.rules);
   renderChairLedger(operationData.chairLedger || []);
   renderAudit(operationData.audits);
 }
@@ -476,7 +563,10 @@ async function loadOperations() {
     ['payments', apiRequest(listPath('dues_payments', { sort: '-created' }))],
     ['transactions', apiRequest(listPath('transactions', { sort: '-transactedAt' }))]
   );
-  if (canManageRules()) requests.push(['chairLedger', apiRequest(listPath('chair_ledger', { sort: '-transactedAt' }))]);
+  if (canManageRules()) requests.push(
+    ['chairLedger', apiRequest(listPath('chair_ledger', { sort: '-transactedAt' }))],
+    ['rules', apiRequest(listPath('rules', { sort: '-effectiveDate,-created' }))]
+  );
   if (isAdmin() || canManageRules() || canManageFinance()) requests.push(['audits', apiRequest(listPath('audit_logs', { sort: '-occurredAt' }))]);
 
   const results = await Promise.allSettled(requests.map(([, request]) => request));
@@ -666,6 +756,85 @@ $('#termCreateForm').addEventListener('submit', async (event) => {
   }, '해당 연도의 1월~12월 운영진 임기를 등록했습니다.');
 });
 
+function markdownHeadingFromFilename(filename) {
+  return String(filename || '운영 규약').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || '운영 규약';
+}
+
+function normalizeExtractedMarkdown(text, filename) {
+  const cleaned = String(text || '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  if (!cleaned) throw new Error('NO_TEXT');
+  return cleaned.startsWith('#') ? cleaned : `# ${markdownHeadingFromFilename(filename)}\n\n${cleaned}`;
+}
+
+async function convertRuleSourceToMarkdown(file) {
+  const type = String(file.type || '').toLowerCase();
+  const filename = String(file.name || '').toLowerCase();
+  if (type === 'application/pdf' || filename.endsWith('.pdf')) {
+    if (!window.pdfjsLib) throw new Error('PDF_CONVERTER_UNAVAILABLE');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.js';
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+    const pages = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const text = await page.getTextContent();
+      const pageText = text.items.map((item) => item.str).join(' ').trim();
+      if (pageText) pages.push(pageText);
+    }
+    return normalizeExtractedMarkdown(pages.join('\n\n'), file.name);
+  }
+  if (type.includes('wordprocessingml') || filename.endsWith('.docx')) {
+    if (!window.mammoth) throw new Error('WORD_CONVERTER_UNAVAILABLE');
+    const result = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+    return normalizeExtractedMarkdown(result.value, file.name);
+  }
+  if (type === 'text/html' || filename.endsWith('.html') || filename.endsWith('.htm')) {
+    const html = await file.text();
+    return normalizeExtractedMarkdown(plainText(html), file.name);
+  }
+  if (type.startsWith('text/') || /\.(md|markdown|txt)$/.test(filename)) {
+    return normalizeExtractedMarkdown(await file.text(), file.name);
+  }
+  throw new Error('UNSUPPORTED_SOURCE');
+}
+
+$('#convertRuleSource').addEventListener('click', async () => {
+  const input = $('#ruleSourceDocument');
+  const file = input.files?.[0];
+  const note = $('#ruleConversionNote');
+  if (!file) {
+    note.textContent = 'NAS에 보관할 원본 파일을 먼저 선택해 주세요.';
+    return;
+  }
+  const button = $('#convertRuleSource');
+  button.disabled = true;
+  note.textContent = '이 브라우저 안에서 Markdown 초안을 만드는 중…';
+  try {
+    const markdown = await convertRuleSourceToMarkdown(file);
+    const form = $('#ruleManageForm');
+    form.elements.contentMarkdown.value = markdown;
+    if (!form.elements.title.value.trim()) form.elements.title.value = markdownHeadingFromFilename(file.name);
+    note.textContent = 'Markdown 초안을 채웠습니다. 내용과 줄바꿈을 검토한 뒤 저장해 주세요.';
+  } catch (error) {
+    if (error.message === 'NO_TEXT') {
+      note.textContent = '텍스트를 찾지 못했습니다. 스캔 PDF는 Markdown 내용을 직접 입력하거나 붙여넣어 주세요.';
+    } else {
+      note.textContent = '변환하지 못했습니다. PDF·Word·Markdown·텍스트 형식인지 확인해 주세요.';
+    }
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$('#previousRevisionSelect').addEventListener('change', (event) => {
+  const rule = operationData.rules.find((item) => item.id === event.target.value);
+  if (!rule) return;
+  const form = $('#ruleManageForm');
+  form.elements.title.value = rule.title || '';
+  form.elements.contentMarkdown.value = ruleMarkdown(rule);
+  $('#ruleConversionNote').textContent = '이전 개정본을 Markdown 편집기에 복사했습니다. 버전·시행일·개정 사유를 새로 입력해 주세요.';
+});
+
 $('#ruleManageForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -678,16 +847,22 @@ $('#ruleManageForm').addEventListener('submit', async (event) => {
     payload.set('title', String(data.get('title')).trim());
     payload.set('version', String(data.get('version')).trim());
     payload.set('effectiveDate', toPbDate(String(data.get('effectiveDate'))));
-    payload.set('content', String(data.get('content')).trim());
+    const markdown = String(data.get('contentMarkdown')).trim();
+    payload.set('content', markdown);
+    payload.set('contentMarkdown', markdown);
+    payload.set('revisionNote', String(data.get('revisionNote')).trim());
+    const previousRevision = String(data.get('previousRevision') || '');
+    if (previousRevision) payload.set('previousRevision', previousRevision);
     payload.set('published', data.get('published') === 'on' ? 'true' : 'false');
-    const document = data.get('document');
-    if (document instanceof File && document.size) payload.set('document', document);
+    const sourceDocument = data.get('sourceDocument');
+    if (sourceDocument instanceof File && sourceDocument.size) payload.set('sourceDocument', sourceDocument);
     await apiRequest('/api/collections/rules/records', { method: 'POST', body: payload });
     form.reset();
-    fieldMessage(form, '규약을 NAS에 저장했습니다.', true);
+    $('#ruleConversionNote').textContent = '원본은 NAS에만 저장됩니다. 파일을 불러온 뒤 Markdown 초안을 검토하고 수정해 게시하세요.';
+    fieldMessage(form, '규약 개정본을 NAS에 저장했습니다.', true);
     await refreshAllData();
   } catch {
-    fieldMessage(form, '규약을 저장하지 못했습니다. PDF는 10MB 이하인지 확인해 주세요.');
+    fieldMessage(form, '규약을 저장하지 못했습니다. 원본 파일은 10MB 이하인지 확인해 주세요.');
   } finally {
     button.disabled = false;
   }

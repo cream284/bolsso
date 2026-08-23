@@ -3,14 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://bolsso-api.tail8a3a4b.ts.net; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; base-uri 'none'; form-action 'self'" />
     <title>모여봄 | 모임 관리 대시보드</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Gowun+Dodum&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=mobile-20260823" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=Gowun+Dodum&amp;family=Playfair+Display:ital,wght@0,600;0,700;1,600&amp;display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css?v=auth-20260823" />
   </head>
   <body>
-    <div class="shell">
+    <section class="login-view" id="loginView">
+      <div class="login-card">
+        <a class="brand login-brand" href="./" aria-label="모여봄 홈">
+          <span class="brand-mark">M</span>
+          <span>모여봄</span>
+        </a>
+        <p class="eyebrow">MEMBER ACCESS</p>
+        <h1>우리 모임의 기록을<br />안전하게 확인해요.</h1>
+        <p class="login-description">회원에게 발급된 로그인 ID와 비밀번호를 입력해 주세요.</p>
+        <form id="loginForm" novalidate>
+          <label>로그인 ID<input id="loginId" name="loginId" autocomplete="username" autocapitalize="none" spellcheck="false" required /></label>
+          <label>비밀번호<input id="password" name="password" type="password" autocomplete="current-password" required /></label>
+          <button class="primary-button login-button" type="submit">로그인</button>
+          <p class="form-message" id="loginMessage" role="alert" aria-live="polite"></p>
+        </form>
+        <p class="privacy-note">회원정보와 회비 자료는 GitHub가 아닌 개인 NAS에서만 불러옵니다.</p>
+      </div>
+    </section>
+
+    <div class="shell" id="appShell" hidden>
       <aside class="sidebar">
         <a class="brand" href="#dashboard" aria-label="모여봄 홈">
           <span class="brand-mark">M</span>
@@ -18,85 +39,72 @@
         </a>
         <nav aria-label="주 메뉴">
           <a class="nav-link active" href="#dashboard"><span>⌘</span> 대시보드</a>
-          <a class="nav-link" href="#meetings"><span>◌</span> 모임</a>
+          <a class="nav-link" href="#dues"><span>◉</span> 회비 현황</a>
           <a class="nav-link" href="#members"><span>♧</span> 멤버</a>
           <a class="nav-link" href="#rules"><span>▤</span> 운영 규약</a>
         </nav>
         <div class="sidebar-bottom">
-          <div class="workspace"><span class="avatar tiny">샘</span><span><strong>샘플 모임</strong><small>워크스페이스 전환</small></span><b>⌄</b></div>
-          <a class="help-link" href="#rules">?&nbsp; 도움말과 가이드</a>
+          <div class="workspace"><span class="avatar tiny" id="sidebarAvatar">회</span><span><strong id="sidebarName">회원</strong><small id="sidebarRole">일반 회원</small></span></div>
+          <button class="logout-button" id="logoutButton" type="button">로그아웃</button>
         </div>
       </aside>
 
       <main>
         <header class="topbar">
           <button class="menu-button" aria-label="메뉴 열기">☰</button>
-          <p><span class="eyebrow">SAMPLE COMMUNITY</span><span class="crumb"> / 대시보드</span></p>
-          <div class="top-actions"><button class="icon-button" aria-label="알림">♧<i></i></button><span class="avatar">회</span></div>
+          <p><span class="eyebrow">MEMBER DASHBOARD</span><span class="crumb"> / 대시보드</span></p>
+          <div class="top-actions"><span class="connection-state" id="connectionState">NAS 연결 확인 중</span><span class="avatar" id="topAvatar">회</span></div>
         </header>
 
         <section id="dashboard" class="content">
           <div class="intro">
-            <div><p class="date">SAMPLE DASHBOARD</p><h1>안녕하세요, 회원님.<br /><em>오늘도</em> 좋은 만남을 만들어요.</h1></div>
-            <button class="primary-button" id="openModal"><span>＋</span> 새 모임 만들기</button>
+            <div><p class="date">PRIVATE DASHBOARD</p><h1>안녕하세요, <span id="greetingName">회원</span>님.<br /><em>함께 만든 기록</em>을 확인해요.</h1></div>
+            <p class="last-updated" id="lastUpdated">NAS 데이터를 불러오는 중입니다.</p>
           </div>
 
-          <section class="next-meeting">
-            <div class="section-title"><span class="label-dot"></span><h2>다가오는 모임</h2><a href="#meetings">전체 일정 보기 <span>→</span></a></div>
-            <article class="meeting-card">
-              <div class="calendar"><b>JUN</b><strong>15</strong><small>SUN</small></div>
-              <div class="meeting-main"><p class="tag">정기 모임 · 샘플 일정</p><h3>이번 달 정기 모임</h3><p class="meeting-details"><span>◷ 오후 7:30 – 9:30</span><span>⌖ 예시 모임 장소</span></p></div>
-              <div class="attendance"><div class="faces"><span class="face one">가</span><span class="face two">나</span><span class="face three">다</span><span class="face more">+7</span></div><p><strong>10명</strong> 참석 예정</p></div>
-              <button class="more-button" aria-label="모임 메뉴">•••</button>
-            </article>
-          </section>
-
           <section class="overview-grid">
-            <div class="section-title grid-heading"><span class="label-dot"></span><h2>한눈에 보기</h2><span class="month-label">SAMPLE</span></div>
+            <div class="section-title grid-heading"><span class="label-dot"></span><h2>한눈에 보기</h2><span class="month-label" id="periodLabel">현재 회비</span></div>
             <div class="metrics">
-              <article class="metric warm"><span class="metric-icon">◉</span><p>이번 달 모임</p><strong>2<small>회</small></strong><em>샘플 데이터</em></article>
-              <article class="metric"><span class="metric-icon">♧</span><p>활동 멤버</p><strong>18<small>명</small></strong><em>샘플 데이터</em></article>
-              <article class="metric green"><span class="metric-icon">₩</span><p>회비 잔액</p><strong>₩ 0</strong><em>샘플 데이터</em></article>
+              <article class="metric warm"><span class="metric-icon">◉</span><p>납부 완료</p><strong id="paidMetric">0 / 0<small>명</small></strong><em id="paidMetricNote">등록된 회비 기간 없음</em></article>
+              <article class="metric"><span class="metric-icon">♧</span><p>활동 멤버</p><strong><span id="memberMetric">0</span><small>명</small></strong><em>활성 회원 기준</em></article>
+              <article class="metric green"><span class="metric-icon">₩</span><p>공개 회비 잔액</p><strong id="balanceMetric">₩ 0</strong><em>최근 공개 거래 기준</em></article>
             </div>
           </section>
 
-          <section class="bottom-grid">
-            <section id="meetings" class="panel schedule-panel">
-              <div class="panel-header"><div><span class="label-dot"></span><h2>이번 달 일정</h2></div><button class="text-button">캘린더 보기 ↗</button></div>
-              <div class="schedule-list">
-                <div class="schedule done"><div class="schedule-date"><b>01</b><span>SUN</span></div><div><strong>지난 정기 모임</strong><p>오후 7:30 · 예시 모임 장소</p></div><span class="status">완료</span></div>
-                <div class="schedule current"><div class="schedule-date"><b>15</b><span>SUN</span></div><div><strong>이번 달 정기 모임</strong><p>오후 7:30 · 예시 모임 장소</p></div><span class="status">예정</span></div>
-                <div class="schedule"><div class="schedule-date"><b>29</b><span>SUN</span></div><div><strong>다음 모임 준비</strong><p>오후 8:00 · 장소 미정</p></div><span class="status">예정</span></div>
-              </div>
+          <section id="dues" class="data-section">
+            <div class="section-title"><span class="label-dot"></span><h2>회비 납부 현황</h2><span class="month-label" id="duesPeriodLabel">등록된 기간 없음</span></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>회원</th><th>구분</th><th>납부 여부</th></tr></thead>
+                <tbody id="duesRows"><tr><td colspan="3" class="empty-cell">등록된 납부 현황이 없습니다.</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="bottom-grid data-grid">
+            <section id="members" class="panel">
+              <div class="panel-header"><div><span class="label-dot"></span><h2>회원 및 운영진</h2></div><span class="month-label" id="memberCountLabel">0명</span></div>
+              <div class="record-list" id="memberList"><p class="empty-message">등록된 회원이 없습니다.</p></div>
             </section>
-            <section class="panel todo-panel">
-              <div class="panel-header"><div><span class="label-dot"></span><h2>해야 할 일</h2></div><button class="more-button">•••</button></div>
-              <label class="todo"><input type="checkbox" checked /><span>5월 모임 장소 예약 확인</span><small>오늘</small></label>
-              <label class="todo"><input type="checkbox" /><span>신규 멤버 2명 가입 승인</span><small class="urgent">D-1</small></label>
-              <label class="todo"><input type="checkbox" /><span>6월 도서 투표 열기</span><small>D-3</small></label>
-              <button class="add-todo" id="addTodo">＋ 할 일 추가하기</button>
+            <section class="panel">
+              <div class="panel-header"><div><span class="label-dot"></span><h2>최근 회비 사용</h2></div><span class="month-label">회원 공개 내역</span></div>
+              <div class="record-list" id="transactionList"><p class="empty-message">공개된 거래 내역이 없습니다.</p></div>
             </section>
           </section>
 
           <section id="rules" class="rules-banner">
             <div class="rule-art"><span>“</span><i></i><i></i><i></i></div>
-            <div><span class="eyebrow">OUR PROMISE</span><h2>우리 모임의 약속을<br />함께 지켜요.</h2><p>처음 온 사람도 편안하고, 오래 함께한 사람도 즐거운<br />샘플 모임 운영 규약을 확인해 보세요.</p></div>
-            <a href="#rule-modal" id="openRules">운영 규약 살펴보기 <span>→</span></a>
+            <div><span class="eyebrow">OUR PROMISE</span><h2 id="ruleTitle">게시된 운영 규약이 없습니다.</h2><p id="ruleSummary">운영진이 규약을 게시하면 이곳에서 확인할 수 있습니다.</p></div>
+            <button class="rule-link" id="openRules" type="button" disabled>운영 규약 살펴보기 <span>→</span></button>
           </section>
         </section>
       </main>
     </div>
 
-    <dialog id="meetingModal">
-      <button class="close-dialog" aria-label="닫기">×</button><span class="eyebrow">NEW GATHERING</span><h2>새로운 모임 만들기</h2>
-      <label>모임 이름<input id="meetingName" placeholder="예: 6월 정기 모임" /></label>
-      <label>날짜<input type="date" /></label>
-      <button class="primary-button" id="createMeeting">모임 추가하기</button>
-    </dialog>
     <dialog id="rulesModal" class="rules-modal">
-      <button class="close-dialog" aria-label="닫기">×</button><span class="eyebrow">CLUB GUIDELINES</span><h2>샘플 모임 운영 규약</h2>
-      <ol><li><strong>서로의 시간을 존중해요.</strong><span>참석이 어렵다면 모임 하루 전까지 알려주세요.</span></li><li><strong>책을 읽지 않아도 괜찮아요.</strong><span>모임에 와서 듣고, 함께 나누는 것만으로 충분해요.</span></li><li><strong>다름을 반갑게 맞이해요.</strong><span>각자의 생각을 판단하지 않고 경청해요.</span></li><li><strong>회비는 함께 쓰는 비용이에요.</strong><span>모임 후 정산 내역을 투명하게 공유합니다.</span></li></ol>
+      <button class="close-dialog" aria-label="닫기">×</button><span class="eyebrow">CLUB GUIDELINES</span><h2 id="rulesModalTitle">운영 규약</h2>
+      <p class="rule-meta" id="rulesModalMeta"></p><div class="rule-content" id="rulesModalContent"></div>
     </dialog>
-    <script src="app.js"></script>
+    <script src="app.js?v=auth-20260823"></script>
   </body>
 </html>

@@ -3,9 +3,12 @@ const AUTH_KEY = 'bolsso.member.session';
 
 const $ = (selector) => document.querySelector(selector);
 const loginView = $('#loginView');
+const passwordChangeView = $('#passwordChangeView');
 const appShell = $('#appShell');
 const loginForm = $('#loginForm');
 const loginMessage = $('#loginMessage');
+const passwordChangeForm = $('#passwordChangeForm');
+const passwordChangeMessage = $('#passwordChangeMessage');
 const rulesModal = $('#rulesModal');
 
 let auth = loadAuth();
@@ -28,7 +31,8 @@ function saveAuth(data) {
       id: data.record.id,
       name: data.record.name,
       role: data.record.role,
-      active: data.record.active
+      active: data.record.active,
+      mustChangePassword: data.record.mustChangePassword === true
     }
   };
   sessionStorage.setItem(AUTH_KEY, JSON.stringify(auth));
@@ -88,10 +92,22 @@ async function refreshAuth() {
 
 function showLogin(message = '') {
   appShell.hidden = true;
+  passwordChangeView.hidden = true;
   loginView.hidden = false;
   loginMessage.textContent = message;
   $('#password').value = '';
   $('#loginId').focus();
+}
+
+function showPasswordChange() {
+  appShell.hidden = true;
+  loginView.hidden = true;
+  passwordChangeView.hidden = false;
+  passwordChangeMessage.textContent = '';
+  $('#temporaryPassword').value = '';
+  $('#newPassword').value = '';
+  $('#newPasswordConfirm').value = '';
+  $('#temporaryPassword').focus();
 }
 
 function showApp() {
@@ -285,7 +301,7 @@ async function loadDashboard() {
     ['회원 목록', apiRequest(listPath('member_directory', { sort: 'name' }))],
     ['회비 기간', apiRequest(listPath('dues_periods', { sort: '-year,-month' }))],
     ['납부 현황', apiRequest(listPath('member_dues_status', { sort: 'memberName' }))],
-    ['회비 사용', apiRequest(listPath('transactions', { sort: '-transactedAt', perPage: '20' }))],
+    ['회비 사용', apiRequest(listPath('member_transactions', { sort: '-transactedAt', perPage: '20' }))],
     ['운영 규약', apiRequest(listPath('rules', { sort: '-effectiveDate', filter: 'published = true', perPage: '1' }))]
   ];
   const results = await Promise.allSettled(requests.map(([, request]) => request));
@@ -325,6 +341,10 @@ loginForm.addEventListener('submit', async (event) => {
   loginMessage.textContent = '';
   try {
     await login(loginId, password);
+    if (auth.record.mustChangePassword) {
+      showPasswordChange();
+      return;
+    }
     showApp();
     await loadDashboard();
   } catch {
@@ -335,6 +355,45 @@ loginForm.addEventListener('submit', async (event) => {
   } finally {
     button.disabled = false;
     button.textContent = '로그인';
+  }
+});
+
+passwordChangeForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const oldPassword = $('#temporaryPassword').value;
+  const password = $('#newPassword').value;
+  const passwordConfirm = $('#newPasswordConfirm').value;
+  if (!oldPassword) {
+    passwordChangeMessage.textContent = '현재 임시 비밀번호를 입력해 주세요.';
+    return;
+  }
+  if (password.length < 12) {
+    passwordChangeMessage.textContent = '비밀번호는 12자 이상으로 설정해 주세요.';
+    return;
+  }
+  if (password !== passwordConfirm) {
+    passwordChangeMessage.textContent = '새 비밀번호 확인이 일치하지 않습니다.';
+    return;
+  }
+
+  const button = passwordChangeForm.querySelector('button[type="submit"]');
+  button.disabled = true;
+  button.textContent = '저장 중…';
+  passwordChangeMessage.textContent = '';
+  try {
+    await apiRequest(`/api/collections/members/records/${encodeURIComponent(auth.record.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ oldPassword, password, passwordConfirm, mustChangePassword: false })
+    });
+    clearAuth();
+    showLogin('새 비밀번호가 설정되었습니다. 새 비밀번호로 다시 로그인해 주세요.');
+  } catch (error) {
+    if (error.message !== 'SESSION_EXPIRED') {
+      passwordChangeMessage.textContent = '비밀번호를 저장하지 못했습니다. 12자 이상인지 확인해 주세요.';
+    }
+  } finally {
+    button.disabled = false;
+    button.textContent = '새 비밀번호 설정';
   }
 });
 
@@ -367,6 +426,7 @@ document.querySelectorAll('.nav-link').forEach((link) => link.addEventListener('
   if (!auth) return showLogin();
   try {
     await refreshAuth();
+    if (auth.record.mustChangePassword) return showPasswordChange();
     showApp();
     await loadDashboard();
   } catch {

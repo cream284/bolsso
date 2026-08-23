@@ -42,7 +42,7 @@ bolsso/
 - 모든 로그인 회원은 회원 이름과 회비 납부 여부를 볼 수 있습니다.
 - 이메일과 원본 은행 거래 파일은 운영진에게만 공개합니다.
 - NAS의 Docker 소켓, PocketBase 관리자 화면, 비밀 키는 외부에 공개하지 않습니다.
-- 규약 원본(PDF·Word·Markdown·텍스트)은 NAS의 보호 파일로 보관합니다. 회장은 브라우저에서 Markdown 초안을 검토·수정한 뒤 새 개정본으로 게시합니다.
+- 규약 원본(PDF·Word·PowerPoint·Excel·Markdown·텍스트)은 NAS의 보호 파일로 보관합니다. 회장은 NAS 내부 MarkItDown 변환 결과를 검토·수정한 뒤 새 개정본으로 게시합니다.
 - 스캔 이미지형 PDF는 텍스트 추출이 되지 않을 수 있으므로 Markdown 내용을 직접 보완해야 합니다.
 - NAS 자동 배포 방법은 [`deploy/nas/README.md`](deploy/nas/README.md)를 참고합니다.
 

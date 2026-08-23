@@ -170,9 +170,9 @@
                 <label>버전<input name="version" maxlength="30" required placeholder="예: 2026.1" /></label>
                 <label>시행일<input name="effectiveDate" type="date" required /></label>
                 <label>개정 사유<input name="revisionNote" maxlength="500" placeholder="예: 회비 납부 기준 명확화" /></label>
-                <label>원본 파일 (NAS 보관)<input name="sourceDocument" id="ruleSourceDocument" type="file" accept=".pdf,.docx,.md,.markdown,.txt,.html,text/plain,text/markdown,text/html,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" /></label>
+                <label>원본 파일 (NAS 보관)<input name="sourceDocument" id="ruleSourceDocument" type="file" accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.md,.markdown,.txt,.html,text/plain,text/markdown,text/html,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" /></label>
                 <button class="text-button convert-button" id="convertRuleSource" type="button">파일에서 Markdown 초안 만들기</button>
-                <p class="operation-note" id="ruleConversionNote">텍스트형 PDF·Word·Markdown·텍스트를 지원합니다. 스캔 PDF는 텍스트를 직접 보완해 주세요.</p>
+                <p class="operation-note" id="ruleConversionNote">NAS 내부 MarkItDown이 PDF·Word·PowerPoint·Excel·Markdown·텍스트의 제목·목록·표를 Markdown으로 변환합니다. 스캔 PDF는 직접 보완해 주세요.</p>
                 <label>Markdown 내용<textarea name="contentMarkdown" rows="14" required spellcheck="false" placeholder="# 모임 운영 규약&#10;&#10;## 제1조 목적&#10;..." ></textarea></label>
                 <label class="check-label"><input name="published" type="checkbox" checked /> 회원에게 게시</label>
                 <button class="primary-button" type="submit">개정본 저장</button><p class="form-message" data-message></p>
@@ -242,8 +242,6 @@
       <button class="primary-button rule-document-button" id="openRuleDocument" type="button" hidden>NAS 원본 파일 보기</button>
       <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
     </dialog>
-    <script src="vendor/pdf.min.js"></script>
-    <script src="vendor/mammoth.browser.min.js"></script>
-    <script src="app.js?v=rule-revisions-20260824"></script>
+    <script src="app.js?v=markitdown-20260824"></script>
   </body>
 </html>

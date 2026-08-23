@@ -75,6 +75,33 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  rule-converter:
+    build:
+      context: ../current/deploy/nas/markitdown
+    image: bolsso-rule-converter:0.1.7
+    container_name: bolsso-rule-converter
+    restart: unless-stopped
+    depends_on:
+      - pocketbase
+    environment:
+      POCKETBASE_URL: http://pocketbase:8080
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 384m
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   internal:
     driver: bridge

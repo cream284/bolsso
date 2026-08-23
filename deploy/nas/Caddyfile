@@ -9,5 +9,12 @@
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
 
-    reverse_proxy pocketbase:8080
+    @rule_converter path /api/bolsso/rules/convert
+    handle @rule_converter {
+        reverse_proxy rule-converter:8080
+    }
+
+    handle {
+        reverse_proxy pocketbase:8080
+    }
 }

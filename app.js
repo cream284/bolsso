@@ -195,12 +195,42 @@ function renderMarkdown(target, source) {
     appendMarkdownInline(node, text);
     target.append(node);
   };
+  const cells = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim());
+  const tableDivider = (line) => /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(line);
 
-  lines.forEach((line) => {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     const heading = line.match(/^(#{1,3})\s+(.+)$/);
     const bullet = line.match(/^\s*[-*]\s+(.+)$/);
     const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-    if (heading) {
+    if (line.includes('|') && tableDivider(lines[index + 1] || '')) {
+      closeList();
+      const table = document.createElement('table');
+      const head = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      cells(line).forEach((cell) => {
+        const cellNode = document.createElement('th');
+        appendMarkdownInline(cellNode, cell);
+        headRow.append(cellNode);
+      });
+      head.append(headRow);
+      table.append(head);
+      const body = document.createElement('tbody');
+      index += 2;
+      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+        const row = document.createElement('tr');
+        cells(lines[index]).forEach((cell) => {
+          const cellNode = document.createElement('td');
+          appendMarkdownInline(cellNode, cell);
+          row.append(cellNode);
+        });
+        body.append(row);
+        index += 1;
+      }
+      index -= 1;
+      table.append(body);
+      target.append(table);
+    } else if (heading) {
       closeList();
       addTextBlock(`h${heading[1].length}`, heading[2]);
     } else if (line.trim() === '---') {
@@ -221,7 +251,7 @@ function renderMarkdown(target, source) {
       closeList();
       addTextBlock('p', line);
     } else closeList();
-  });
+  }
 }
 
 function setConnection(ok, text) {
@@ -767,35 +797,10 @@ function normalizeExtractedMarkdown(text, filename) {
 }
 
 async function convertRuleSourceToMarkdown(file) {
-  const type = String(file.type || '').toLowerCase();
-  const filename = String(file.name || '').toLowerCase();
-  if (type === 'application/pdf' || filename.endsWith('.pdf')) {
-    if (!window.pdfjsLib) throw new Error('PDF_CONVERTER_UNAVAILABLE');
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.js';
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
-    const pages = [];
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-      const page = await pdf.getPage(pageNumber);
-      const text = await page.getTextContent();
-      const pageText = text.items.map((item) => item.str).join(' ').trim();
-      if (pageText) pages.push(pageText);
-    }
-    return normalizeExtractedMarkdown(pages.join('\n\n'), file.name);
-  }
-  if (type.includes('wordprocessingml') || filename.endsWith('.docx')) {
-    if (!window.mammoth) throw new Error('WORD_CONVERTER_UNAVAILABLE');
-    const result = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-    return normalizeExtractedMarkdown(result.value, file.name);
-  }
-  if (type === 'text/html' || filename.endsWith('.html') || filename.endsWith('.htm')) {
-    const html = await file.text();
-    return normalizeExtractedMarkdown(plainText(html), file.name);
-  }
-  if (type.startsWith('text/') || /\.(md|markdown|txt)$/.test(filename)) {
-    return normalizeExtractedMarkdown(await file.text(), file.name);
-  }
-  throw new Error('UNSUPPORTED_SOURCE');
+  const payload = new FormData();
+  payload.set('file', file);
+  const result = await apiRequest('/api/bolsso/rules/convert', { method: 'POST', body: payload });
+  return normalizeExtractedMarkdown(result.markdown, result.sourceName || file.name);
 }
 
 $('#convertRuleSource').addEventListener('click', async () => {
@@ -808,7 +813,7 @@ $('#convertRuleSource').addEventListener('click', async () => {
   }
   const button = $('#convertRuleSource');
   button.disabled = true;
-  note.textContent = '이 브라우저 안에서 Markdown 초안을 만드는 중…';
+  note.textContent = 'NAS 내부 MarkItDown으로 Markdown 초안을 만드는 중…';
   try {
     const markdown = await convertRuleSourceToMarkdown(file);
     const form = $('#ruleManageForm');

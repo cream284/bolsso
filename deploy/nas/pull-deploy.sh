@@ -21,6 +21,13 @@ log() {
   printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
 }
 
+sync_runtime_files() {
+  source_dir="$1/deploy/nas"
+  install -o root -g root -m 0644 "$source_dir/Dockerfile" "$ROOT/runtime/Dockerfile"
+  install -o root -g root -m 0644 "$source_dir/Caddyfile" "$ROOT/runtime/Caddyfile"
+  install -o root -g root -m 0644 "$source_dir/docker-compose.yml" "$ROOT/runtime/docker-compose.yml"
+}
+
 if [ "$(id -u)" -ne 0 ]; then
   log "ERROR: this script must run as root from DSM Task Scheduler"
   exit 1
@@ -86,11 +93,13 @@ if [ -L "$ROOT/current" ]; then
   PREVIOUS_RELEASE="$(readlink "$ROOT/current")"
 fi
 ln -sfn "$RELEASE" "$ROOT/current"
+sync_runtime_files "$RELEASE"
 
 if ! "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --build --force-recreate --remove-orphans; then
   log "ERROR: container build or start failed"
   if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
     ln -sfn "$PREVIOUS_RELEASE" "$ROOT/current"
+    sync_runtime_files "$PREVIOUS_RELEASE"
     "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans || true
   else
     rm -f "$ROOT/current"
@@ -122,6 +131,7 @@ if [ "$HEALTHY" -ne 1 ]; then
   "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" logs --no-color --tail=120 || true
   if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
     ln -sfn "$PREVIOUS_RELEASE" "$ROOT/current"
+    sync_runtime_files "$PREVIOUS_RELEASE"
     "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans || true
   else
     rm -f "$ROOT/current"

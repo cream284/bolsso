@@ -204,6 +204,7 @@ th{font:10px 'DM Mono',monospace;color:var(--muted);letter-spacing:.06em;backgro
 .rule-content h1{font-size:19px}.rule-content h2{font-size:16px}.rule-content h3{font-size:14px}
 .rule-content p{margin:0 0 11px}.rule-content ul,.rule-content ol{margin:0 0 13px;padding-left:22px}
 .rule-content li{margin:3px 0}.rule-content hr{border:0;border-top:1px solid var(--line);margin:20px 0}
+.rule-content table{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:12px}.rule-content th,.rule-content td{border:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}.rule-content th{background:#f4f1e7}
 .rule-document-button{margin-top:24px;width:100%}
 .rule-document-message{margin-top:12px}
 .operation-panel{margin-top:64px;border-top:1px solid var(--ink);padding-top:22px}

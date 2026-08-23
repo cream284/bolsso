@@ -18,9 +18,13 @@ migrate((app) => {
     mimeTypes: [
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
       "text/markdown",
       "text/plain",
-      "text/html"
+      "text/html",
+      "text/csv"
     ],
     protected: true
   }))

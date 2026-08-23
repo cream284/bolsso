@@ -367,8 +367,8 @@ passwordChangeForm.addEventListener('submit', async (event) => {
     passwordChangeMessage.textContent = '현재 임시 비밀번호를 입력해 주세요.';
     return;
   }
-  if (password.length < 12) {
-    passwordChangeMessage.textContent = '비밀번호는 12자 이상으로 설정해 주세요.';
+  if (password.length < 8) {
+    passwordChangeMessage.textContent = '비밀번호는 8자 이상으로 설정해 주세요.';
     return;
   }
   if (password !== passwordConfirm) {
@@ -389,7 +389,7 @@ passwordChangeForm.addEventListener('submit', async (event) => {
     showLogin('새 비밀번호가 설정되었습니다. 새 비밀번호로 다시 로그인해 주세요.');
   } catch (error) {
     if (error.message !== 'SESSION_EXPIRED') {
-      passwordChangeMessage.textContent = '비밀번호를 저장하지 못했습니다. 12자 이상인지 확인해 주세요.';
+      passwordChangeMessage.textContent = '비밀번호를 저장하지 못했습니다. 8자 이상인지 확인해 주세요.';
     }
   } finally {
     button.disabled = false;

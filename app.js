@@ -488,6 +488,32 @@ function renderMembers(items) {
   });
 }
 
+function renderMemberRecords(items) {
+  const list = $('#memberRecordList');
+  if (!list) return;
+  list.replaceChildren();
+  if (!items.length) return appendEmpty(list, '등록된 회원이 없습니다.');
+
+  [...items]
+    .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'ko'))
+    .forEach((member) => {
+      const row = document.createElement('div');
+      row.className = 'record-row';
+      const info = document.createElement('span');
+      const name = document.createElement('strong');
+      name.textContent = member.name || '이름 없음';
+      const detail = document.createElement('small');
+      const status = member.active ? '활성' : '비활성';
+      detail.textContent = [`ID ${member.loginId || '미발급'}`, status, memberRoleLabel(member)].join(' · ');
+      info.append(name, detail);
+      const badge = document.createElement('span');
+      badge.className = `role-badge ${member.active ? 'operator' : ''}`;
+      badge.textContent = member.isAdmin ? '시스템 관리자' : status;
+      row.append(info, badge);
+      list.append(row);
+    });
+}
+
 function appendEmpty(container, message) {
   const empty = document.createElement('p');
   empty.className = 'empty-message';
@@ -1011,6 +1037,7 @@ function renderOperationControls() {
     return `${period?.label || '기간'} · ${member?.name || '회원'} · ${payment.status || 'unpaid'}`;
   });
   setOptions($('#transactionSelect'), operationData.transactions.filter((item) => item.entryStatus === 'draft'), (item) => `${formatDate(item.transactedAt)} · ${item.category} · ${formatWon(item.amount)}`);
+  renderMemberRecords(isAdmin() ? members : []);
   renderTerms(operationData.terms);
   renderRuleRevisions(operationData.rules);
   renderChairLedger(operationData.chairLedger || []);
@@ -1119,7 +1146,7 @@ loginForm.addEventListener('submit', async (event) => {
   const loginId = $('#loginId').value.trim().toLowerCase();
   const password = $('#password').value;
   if (!loginId || !password) {
-    loginMessage.textContent = '로그인 ID(기존 회원은 이메일)와 비밀번호를 모두 입력해 주세요.';
+    loginMessage.textContent = '로그인 ID와 비밀번호를 모두 입력해 주세요.';
     return;
   }
 
@@ -1137,7 +1164,7 @@ loginForm.addEventListener('submit', async (event) => {
     await refreshAllData();
   } catch {
     clearAuth();
-    loginMessage.textContent = '로그인 ID(기존 회원은 이메일)와 비밀번호를 확인해 주세요.';
+    loginMessage.textContent = '로그인 ID와 비밀번호를 확인해 주세요.';
     $('#password').value = '';
     $('#password').focus();
   } finally {

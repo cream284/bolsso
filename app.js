@@ -125,6 +125,7 @@ function showApp() {
   $('#chairNav').hidden = !canManageRules();
   $('#treasurerNav').hidden = !canManageFinance();
   $('#auditNav').hidden = !(isAdmin() || canManageRules() || canManageFinance());
+  renderAdminFinanceDelegationControls();
 }
 
 function roleLabel(role) {
@@ -145,6 +146,23 @@ function canManageRules() {
 
 function canManageFinance() {
   return isAdmin() || auth?.record?.role === 'treasurer';
+}
+
+function isAdminFinanceDelegate() {
+  return isAdmin() && auth?.record?.role !== 'treasurer';
+}
+
+function renderAdminFinanceDelegationControls() {
+  const delegated = isAdminFinanceDelegate();
+  document.querySelectorAll('[data-admin-finance-delegation]').forEach((node) => {
+    node.hidden = !delegated;
+    const input = node.querySelector('textarea');
+    if (input) {
+      input.required = delegated;
+      if (!delegated) input.value = '';
+    }
+  });
+  $('#adminFinanceDelegationNotice').hidden = !delegated;
 }
 
 function memberRoleLabel(member) {
@@ -576,7 +594,32 @@ function renderChairLedger(items) {
     const title = document.createElement('strong');
     title.textContent = item.category;
     const detail = document.createElement('small');
-    detail.textContent = [formatDate(item.transactedAt), item.memo].filter(Boolean).join(' · ');
+    const delegation = item.adminDelegated
+      ? `관리자 대행${item.adminDelegationReason ? `: ${item.adminDelegationReason}` : ''}`
+      : '';
+    detail.textContent = [formatDate(item.transactedAt), item.memo, delegation].filter(Boolean).join(' · ');
+    info.append(title, detail);
+    const amount = document.createElement('b');
+    amount.className = item.type === 'income' ? 'income' : 'expense';
+    amount.textContent = `${item.type === 'income' ? '+' : '-'} ${formatWon(item.amount)}`;
+    row.append(info, amount);
+    list.append(row);
+  });
+}
+
+function renderAdminFinanceDelegations(items) {
+  const list = $('#adminFinanceDelegationList');
+  list.replaceChildren();
+  const delegated = items.filter((item) => item.adminDelegated).slice(0, 20);
+  if (!delegated.length) return appendEmpty(list, '관리자 대행 처리 기록이 없습니다.');
+  delegated.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'record-row transaction-row';
+    const info = document.createElement('span');
+    const title = document.createElement('strong');
+    title.textContent = `관리자 대행 · ${item.category}`;
+    const detail = document.createElement('small');
+    detail.textContent = [formatDate(item.transactedAt), item.entryStatus === 'confirmed' ? '확정' : '초안', item.adminDelegationReason].filter(Boolean).join(' · ');
     info.append(title, detail);
     const amount = document.createElement('b');
     amount.className = item.type === 'income' ? 'income' : 'expense';
@@ -719,7 +762,9 @@ function renderOperationControls() {
   renderTerms(operationData.terms);
   renderRuleRevisions(operationData.rules);
   renderChairLedger(operationData.chairLedger || []);
+  renderAdminFinanceDelegations(operationData.transactions);
   renderAudit(operationData.audits);
+  renderAdminFinanceDelegationControls();
 }
 
 async function loadOperations() {
@@ -1189,6 +1234,8 @@ $('#transactionCreateForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const data = new FormData(form);
+  const delegationReason = String(data.get('adminDelegationReason') || '').trim();
+  if (isAdminFinanceDelegate() && delegationReason.length < 5) return fieldMessage(form, '관리자 대행 사유를 5자 이상 입력해 주세요.');
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
   fieldMessage(form, 'NAS에 장부 초안을 저장 중…');
@@ -1200,6 +1247,7 @@ $('#transactionCreateForm').addEventListener('submit', async (event) => {
     payload.set('amount', String(data.get('amount')));
     payload.set('balanceAfter', String(data.get('balanceAfter') || 0));
     payload.set('memo', String(data.get('memo')).trim());
+    payload.set('adminDelegationReason', delegationReason);
     payload.set('visibleToMembers', data.get('visibleToMembers') === 'on' ? 'true' : 'false');
     const evidence = data.get('evidence');
     if (evidence instanceof File && evidence.size) payload.set('evidence', evidence);
@@ -1220,14 +1268,16 @@ $('#transactionConfirmForm').addEventListener('submit', async (event) => {
   const data = new FormData(form);
   const transactionId = String(data.get('transactionId'));
   if (!transactionId) return fieldMessage(form, '확정할 초안 장부를 선택해 주세요.');
+  const delegationReason = String(data.get('adminDelegationReason') || '').trim();
+  if (isAdminFinanceDelegate() && delegationReason.length < 5) return fieldMessage(form, '관리자 대행 사유를 5자 이상 입력해 주세요.');
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
   try {
     await apiRequest(`/api/collections/transactions/records/${encodeURIComponent(transactionId)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ entryStatus: 'confirmed' })
+      body: JSON.stringify({ entryStatus: 'confirmed', adminDelegationReason: delegationReason })
     });
-    fieldMessage(form, '장부를 확정했습니다. 회장은 읽기 전용으로 확인할 수 있습니다.', true);
+    fieldMessage(form, '장부를 확정했습니다. 회장은 읽기 전용으로 확인할 수 있으며 확정 장부는 수정·삭제할 수 없습니다.', true);
     await refreshAllData();
   } catch {
     fieldMessage(form, '장부를 확정하지 못했습니다.');

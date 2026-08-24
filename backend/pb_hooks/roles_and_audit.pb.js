@@ -71,6 +71,46 @@ function unpublishOlderRuleRevisions(event) {
 onRecordAfterCreateSuccess(unpublishOlderRuleRevisions, "rules")
 onRecordAfterUpdateSuccess(unpublishOlderRuleRevisions, "rules")
 
+function isAdminFinanceDelegate(actor) {
+  return actor && (actor.getBool("isAdmin") || actor.getString("role") === "admin") && actor.getString("role") !== "treasurer"
+}
+
+function requireAdminFinanceDelegation(event) {
+  if (!isAdminFinanceDelegate(event.auth)) return
+  const reason = event.record.getString("adminDelegationReason").trim()
+  if (reason.length < 5) throw new BadRequestError("관리자 재정 대행 사유를 5자 이상 입력해 주세요.")
+  event.record.set("adminDelegated", true)
+  event.record.set("adminDelegationReason", reason)
+}
+
+onRecordCreateRequest(function (event) {
+  requireAdminFinanceDelegation(event)
+  if (!isAdminFinanceDelegate(event.auth)) {
+    event.record.set("adminDelegated", false)
+    event.record.set("adminDelegationReason", "")
+  }
+  event.next()
+}, "transactions")
+
+onRecordUpdateRequest(function (event) {
+  if (event.record.original().getString("entryStatus") === "confirmed") {
+    throw new BadRequestError("확정 장부는 수정할 수 없습니다. 정정 거래를 새로 등록해 주세요.")
+  }
+  requireAdminFinanceDelegation(event)
+  if (!isAdminFinanceDelegate(event.auth)) {
+    event.record.set("adminDelegated", event.record.original().getBool("adminDelegated"))
+    event.record.set("adminDelegationReason", event.record.original().getString("adminDelegationReason"))
+  }
+  event.next()
+}, "transactions")
+
+onRecordDeleteRequest(function (event) {
+  if (event.record.getString("entryStatus") === "confirmed") {
+    throw new BadRequestError("확정 장부는 삭제할 수 없습니다. 정정 거래를 새로 등록해 주세요.")
+  }
+  event.next()
+}, "transactions")
+
 onRecordCreateRequest(function (event) {
   event.record.set("createdBy", event.auth.id)
   event.record.set("entryStatus", "draft")

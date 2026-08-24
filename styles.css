@@ -118,6 +118,10 @@ dialog label{display:grid;gap:7px;font-size:12px;margin-top:15px}
 dialog input{font:inherit;padding:11px;border:1px solid var(--line);background:#fff;width:100%}
 dialog .primary-button{width:100%;margin-top:22px}
 .rules-modal{width:min(550px,calc(100% - 32px))}
+.rule-content table{width:100%;border-collapse:collapse;margin:18px 0;font-size:13px;overflow-wrap:anywhere}
+.rule-content th,.rule-content td{border:1px solid var(--line);padding:9px 8px;text-align:left;vertical-align:top}
+.rule-content th{background:#f0f5e8;font-weight:600}
+.record-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .rules-modal ol{padding:0;margin:0;list-style:none;counter-reset:rule}
 .rules-modal li{counter-increment:rule;border-top:1px solid var(--line);padding:15px 0 15px 34px;position:relative}
 .rules-modal li:before{content:'0' counter(rule);position:absolute;left:0;top:15px;color:#8fa068;font:11px 'DM Mono',monospace}

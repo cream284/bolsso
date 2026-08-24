@@ -378,6 +378,19 @@ function renderRule(items) {
   renderMarkdown($('#rulesModalContent'), text);
 }
 
+function showRuleRevisionPreview(rule) {
+  $('#rulesModalTitle').textContent = rule.title || '운영 규약 초안';
+  $('#rulesModalMeta').textContent = [
+    rule.published ? '게시본' : '비공개 초안',
+    rule.version,
+    formatDate(rule.effectiveDate)
+  ].filter(Boolean).join(' · ');
+  $('#openRuleDocument').hidden = true;
+  $('#ruleDocumentMessage').textContent = '';
+  renderMarkdown($('#rulesModalContent'), ruleMarkdown(rule));
+  rulesModal.showModal();
+}
+
 async function openProtectedRuleDocument() {
   const filename = latestRule?.sourceDocument || latestRule?.document;
   if (!filename) return;
@@ -521,6 +534,36 @@ function renderRuleRevisions(items) {
     detail.textContent = [rule.published ? '현재 게시본' : '이력', formatDate(rule.effectiveDate), rule.revisionNote].filter(Boolean).join(' · ');
     info.append(title, detail);
     row.append(info);
+    const actions = document.createElement('span');
+    actions.className = 'record-actions';
+    const preview = document.createElement('button');
+    preview.type = 'button';
+    preview.className = 'text-button';
+    preview.textContent = '미리보기';
+    preview.addEventListener('click', () => showRuleRevisionPreview(rule));
+    actions.append(preview);
+    if (!rule.published) {
+      const publish = document.createElement('button');
+      publish.type = 'button';
+      publish.className = 'text-button';
+      publish.textContent = '회원 게시';
+      publish.addEventListener('click', async () => {
+        publish.disabled = true;
+        publish.textContent = '게시 중…';
+        try {
+          await apiRequest(`/api/collections/rules/records/${encodeURIComponent(rule.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ published: true })
+          });
+          await refreshAllData();
+        } catch {
+          publish.disabled = false;
+          publish.textContent = '게시 실패';
+        }
+      });
+      actions.append(publish);
+    }
+    row.append(actions);
     list.append(row);
   });
 }
@@ -595,7 +638,7 @@ async function loadOperations() {
   );
   if (canManageRules()) requests.push(
     ['chairLedger', apiRequest(listPath('chair_ledger', { sort: '-transactedAt' }))],
-    ['rules', apiRequest(listPath('rules', { sort: '-effectiveDate,-created' }))]
+    ['rules', apiRequest(listPath('rules', { sort: '-updated' }))]
   );
   if (isAdmin() || canManageRules() || canManageFinance()) requests.push(['audits', apiRequest(listPath('audit_logs', { sort: '-occurredAt' }))]);
 

@@ -51,7 +51,7 @@ function registerAudit(names) {
 const auditedCollections = ["members", "officer_terms", "dues_policies", "dues_periods", "dues_payments", "transactions", "rules"]
 registerAudit(auditedCollections)
 
-onRecordAfterCreateSuccess(function (event) {
+function unpublishOlderRuleRevisions(event) {
   event.next()
   if (!event.record.getBool("published")) return
   const olderPublished = event.app.findRecordsByFilter(
@@ -66,7 +66,10 @@ onRecordAfterCreateSuccess(function (event) {
     record.set("published", false)
     event.app.save(record)
   }
-}, "rules")
+}
+
+onRecordAfterCreateSuccess(unpublishOlderRuleRevisions, "rules")
+onRecordAfterUpdateSuccess(unpublishOlderRuleRevisions, "rules")
 
 onRecordCreateRequest(function (event) {
   event.record.set("createdBy", event.auth.id)

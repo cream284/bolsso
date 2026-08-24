@@ -35,6 +35,8 @@ bolsso/
 └── README.md
 ```
 
+각 모듈, 사용자 역할, PocketBase 컬렉션과 NAS 배포 구성의 상세 설명은 [`MODULES.md`](MODULES.md)를 참고합니다.
+
 ## 데이터와 보안 원칙
 
 - GitHub Pages에는 정적 화면 코드만 배포합니다.

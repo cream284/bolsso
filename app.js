@@ -183,7 +183,8 @@ function renderAdminFinanceDelegationControls() {
 
 function memberRoleLabel(member) {
   if (member.isAdmin && member.role === 'chair') return '관리자 · 회장';
-  if (member.isAdmin) return `관리자 · ${roleLabel(member.role)}`;
+  if (member.isAdmin && member.role === 'treasurer') return '관리자 · 총무';
+  if (member.isAdmin) return '관리자';
   return roleLabel(member.role);
 }
 

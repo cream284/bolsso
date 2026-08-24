@@ -680,8 +680,8 @@ async function loadDashboard() {
     ['납부 현황', apiRequest(listPath('member_dues_status', { sort: 'memberName' }))],
     ['회비 사용', apiRequest(listPath('member_transactions', { sort: '-transactedAt', perPage: '20' }))],
     ['모임·여행 일정', apiRequest(listPath('events', { sort: '-scheduledAt' }))],
-    ['참석자 명단', apiRequest(listPath('event_attendees', { sort: '-updated' }))],
-    ['운영 규약', apiRequest(listPath('rules', { sort: '-updated', filter: 'published = true', perPage: '1' }))]
+    ['참석자 명단', apiRequest(listPath('event_attendees'))],
+    ['운영 규약', apiRequest(listPath('rules', { sort: '-savedAt', filter: 'published = true', perPage: '1' }))]
   ];
   const results = await Promise.allSettled(requests.map(([, request]) => request));
   if (!auth || results.some((result) => result.status === 'rejected' && result.reason?.message === 'SESSION_EXPIRED')) return;
@@ -723,8 +723,8 @@ function fieldMessage(form, message, ok = false) {
 
 function sortRulesByLastSaved(items) {
   return [...items].sort((left, right) => {
-    const leftSavedAt = String(left.updated || left.created || left.effectiveDate || '');
-    const rightSavedAt = String(right.updated || right.created || right.effectiveDate || '');
+    const leftSavedAt = String(left.savedAt || left.effectiveDate || '');
+    const rightSavedAt = String(right.savedAt || right.effectiveDate || '');
     return rightSavedAt.localeCompare(leftSavedAt);
   });
 }
@@ -1065,9 +1065,9 @@ async function loadOperations() {
   );
   if (canManageRules()) requests.push(
     ['chairLedger', apiRequest(listPath('chair_ledger', { sort: '-transactedAt' }))],
-    ['rules', apiRequest(listPath('rules', { sort: '-updated' }))],
+    ['rules', apiRequest(listPath('rules', { sort: '-savedAt' }))],
     ['events', apiRequest(listPath('events', { sort: '-scheduledAt' }))],
-    ['eventAttendees', apiRequest(listPath('event_attendees', { sort: '-updated' }))]
+    ['eventAttendees', apiRequest(listPath('event_attendees'))]
   );
   if (isAdmin() || canManageRules() || canManageFinance()) requests.push(['audits', apiRequest(listPath('audit_logs', { sort: '-occurredAt' }))]);
 

@@ -52,6 +52,14 @@ function registerAudit(names) {
 const auditedCollections = ["members", "signup_requests", "officer_terms", "dues_policies", "dues_periods", "dues_payments", "transactions", "rules", "events", "event_attendees"]
 registerAudit(auditedCollections)
 
+function stampRuleSavedAt(event) {
+  event.record.set("savedAt", new Date().toISOString())
+  event.next()
+}
+
+onRecordCreateRequest(stampRuleSavedAt, "rules")
+onRecordUpdateRequest(stampRuleSavedAt, "rules")
+
 function normalizeSignupPhone(phone) {
   const normalized = String(phone || "").trim()
   const digits = normalized.replace(/\D/g, "")

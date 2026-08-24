@@ -118,7 +118,8 @@ dialog label{display:grid;gap:7px;font-size:12px;margin-top:15px}
 dialog input{font:inherit;padding:11px;border:1px solid var(--line);background:#fff;width:100%}
 dialog .primary-button{width:100%;margin-top:22px}
 .rules-modal{width:min(550px,calc(100% - 32px))}
-.rule-content table{width:100%;border-collapse:collapse;margin:18px 0;font-size:13px;overflow-wrap:anywhere}
+.rule-table-wrap{max-width:100%;overflow-x:auto;margin:18px 0}
+.rule-content table{width:100%;border-collapse:collapse;margin:0;font-size:13px;overflow-wrap:anywhere}
 .rule-content th,.rule-content td{border:1px solid var(--line);padding:9px 8px;text-align:left;vertical-align:top}
 .rule-content th{background:#f0f5e8;font-weight:600}
 .record-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -208,7 +209,7 @@ th{font:10px 'DM Mono',monospace;color:var(--muted);letter-spacing:.06em;backgro
 .rule-content h1{font-size:19px}.rule-content h2{font-size:16px}.rule-content h3{font-size:14px}
 .rule-content p{margin:0 0 11px}.rule-content ul,.rule-content ol{margin:0 0 13px;padding-left:22px}
 .rule-content li{margin:3px 0}.rule-content hr{border:0;border-top:1px solid var(--line);margin:20px 0}
-.rule-content table{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:12px}.rule-content th,.rule-content td{border:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}.rule-content th{background:#f4f1e7}
+.rule-content table{width:100%;border-collapse:collapse;margin:0;font-size:12px}.rule-content th,.rule-content td{border:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}.rule-content th{background:#f4f1e7}
 .rule-document-button{margin-top:24px;width:100%}
 .rule-document-message{margin-top:12px}
 .operation-panel{margin-top:64px;border-top:1px solid var(--ink);padding-top:22px}

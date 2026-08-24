@@ -195,8 +195,59 @@ function renderMarkdown(target, source) {
     appendMarkdownInline(node, text);
     target.append(node);
   };
-  const cells = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim());
-  const tableDivider = (line) => /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(line);
+  const cells = (line) => {
+    const text = line.trim().replace(/^\|\s?/, '').replace(/\s?\|$/, '');
+    const values = [];
+    let cell = '';
+    let escaped = false;
+    for (const character of text) {
+      if (escaped) {
+        cell += character;
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === '|') {
+        values.push(cell.trim());
+        cell = '';
+      } else cell += character;
+    }
+    if (escaped) cell += '\\';
+    values.push(cell.trim());
+    return values;
+  };
+  const tableDivider = (line) => {
+    if (!line.includes('|')) return false;
+    const dividerCells = cells(line);
+    return dividerCells.length > 1 && dividerCells.every((cell) => /^:?-{3,}:?$/.test(cell));
+  };
+  const addTable = (headerCells, rowLines) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'rule-table-wrap';
+    const table = document.createElement('table');
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headerCells.forEach((cell) => {
+      const cellNode = document.createElement('th');
+      appendMarkdownInline(cellNode, cell);
+      headRow.append(cellNode);
+    });
+    head.append(headRow);
+    table.append(head);
+    const body = document.createElement('tbody');
+    rowLines.forEach((line) => {
+      const row = document.createElement('tr');
+      const rowCells = cells(line);
+      headerCells.forEach((_, cellIndex) => {
+        const cellNode = document.createElement('td');
+        appendMarkdownInline(cellNode, rowCells[cellIndex] || '');
+        row.append(cellNode);
+      });
+      body.append(row);
+    });
+    table.append(body);
+    wrapper.append(table);
+    target.append(wrapper);
+  };
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
@@ -205,31 +256,14 @@ function renderMarkdown(target, source) {
     const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
     if (line.includes('|') && tableDivider(lines[index + 1] || '')) {
       closeList();
-      const table = document.createElement('table');
-      const head = document.createElement('thead');
-      const headRow = document.createElement('tr');
-      cells(line).forEach((cell) => {
-        const cellNode = document.createElement('th');
-        appendMarkdownInline(cellNode, cell);
-        headRow.append(cellNode);
-      });
-      head.append(headRow);
-      table.append(head);
-      const body = document.createElement('tbody');
+      const rowLines = [];
       index += 2;
       while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
-        const row = document.createElement('tr');
-        cells(lines[index]).forEach((cell) => {
-          const cellNode = document.createElement('td');
-          appendMarkdownInline(cellNode, cell);
-          row.append(cellNode);
-        });
-        body.append(row);
+        rowLines.push(lines[index]);
         index += 1;
       }
       index -= 1;
-      table.append(body);
-      target.append(table);
+      addTable(cells(line), rowLines);
     } else if (heading) {
       closeList();
       addTextBlock(`h${heading[1].length}`, heading[2]);

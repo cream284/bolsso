@@ -102,6 +102,75 @@ onRecordUpdateRequest(function (event) {
   event.next()
 }, "signup_requests")
 
+const memberDataEncryptedPrefix = "enc:v1:"
+
+function memberDataEncryptionKey() {
+  const rootKey = $os.getenv("PB_ENCRYPTION_KEY")
+  if (!/^[a-f0-9]{32}$/i.test(rootKey)) {
+    throw new InternalServerError("회원정보 암호화 키가 준비되지 않았습니다.")
+  }
+  return $security.sha256("bolsso-member-data-v1:" + rootKey).slice(0, 32)
+}
+
+function encryptMemberData(value) {
+  const text = String(value || "")
+  if (!text || text.startsWith(memberDataEncryptedPrefix)) return text
+  return memberDataEncryptedPrefix + $security.encrypt(text, memberDataEncryptionKey())
+}
+
+function decryptMemberData(value) {
+  const text = String(value || "")
+  if (!text.startsWith(memberDataEncryptedPrefix)) return text
+  return String($security.decrypt(text.slice(memberDataEncryptedPrefix.length), memberDataEncryptionKey()))
+}
+
+function encryptMemberRecord(event) {
+  const collection = event.record.collection().name
+  if (collection === "members") {
+    event.record.set("name", encryptMemberData(event.record.getString("name")))
+  } else if (collection === "signup_requests") {
+    event.record.set("name", encryptMemberData(event.record.getString("name")))
+    event.record.set("phone", encryptMemberData(event.record.getString("phone")))
+  }
+  event.next()
+}
+
+onRecordCreateRequest(encryptMemberRecord, "members", "signup_requests")
+onRecordUpdateRequest(encryptMemberRecord, "members", "signup_requests")
+
+function canReadMemberData(auth) {
+  return auth && auth.collection().name === "members" && auth.getBool("active") && !auth.getBool("mustChangePassword")
+}
+
+function isMemberDataAdmin(auth) {
+  return canReadMemberData(auth) && (auth.getBool("isAdmin") || auth.getString("role") === "admin")
+}
+
+onRecordEnrich(function (event) {
+  const collection = event.record.collection().name
+  const auth = event.requestInfo.auth
+  if (collection === "members") {
+    // Auth responses enrich before requestInfo.auth is available, but direct record access is already rule protected.
+    event.record.set("name", decryptMemberData(event.record.getString("name")))
+  } else if (collection === "member_directory") {
+    if (canReadMemberData(auth)) event.record.set("name", decryptMemberData(event.record.getString("name")))
+    else event.record.hide("name")
+  } else if (collection === "member_dues_status") {
+    if (canReadMemberData(auth)) event.record.set("memberName", decryptMemberData(event.record.getString("memberName")))
+    else event.record.hide("memberName")
+  } else if (collection === "signup_requests") {
+    if (isMemberDataAdmin(auth)) {
+      event.record.set("name", decryptMemberData(event.record.getString("name")))
+      event.record.set("phone", decryptMemberData(event.record.getString("phone")))
+    } else {
+      event.record.hide("name")
+      event.record.hide("phone")
+      event.record.hide("loginId")
+    }
+  }
+  event.next()
+}, "members", "member_directory", "member_dues_status", "signup_requests")
+
 function unpublishOlderRuleRevisions(event) {
   event.next()
   if (!event.record.getBool("published")) return

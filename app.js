@@ -572,7 +572,7 @@ async function openProtectedRuleDocument() {
 async function loadDashboard() {
   setConnection(false, 'NAS 연결 확인 중');
   const requests = [
-    ['회원 목록', apiRequest(listPath('member_directory', { sort: 'name' }))],
+    ['회원 목록', apiRequest(listPath('member_directory', { sort: '-joinedAt' }))],
     ['회비 기간', apiRequest(listPath('dues_periods', { sort: '-year,-month' }))],
     ['납부 현황', apiRequest(listPath('member_dues_status', { sort: 'memberName' }))],
     ['회비 사용', apiRequest(listPath('member_transactions', { sort: '-transactedAt', perPage: '20' }))],
@@ -938,11 +938,11 @@ async function loadOperations() {
   if (!isAdmin() && !canManageRules() && !canManageFinance()) return;
 
   const requests = [
-    ['directory', apiRequest(listPath('member_directory', { sort: 'name' }))],
+    ['directory', apiRequest(listPath('member_directory', { sort: '-joinedAt' }))],
     ['terms', apiRequest(listPath('officer_terms', { sort: '-year,office' }))]
   ];
   if (isAdmin()) requests.push(
-    ['members', apiRequest(listPath('members', { sort: 'name' }))],
+    ['members', apiRequest(listPath('members', { sort: '-joinedAt' }))],
     ['signupRequests', apiRequest(listPath('signup_requests', { sort: '-requestedAt', filter: 'status = "pending"' }))]
   );
   if (canManageFinance()) requests.push(

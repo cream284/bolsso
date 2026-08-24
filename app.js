@@ -981,7 +981,25 @@ function normalizeExtractedMarkdown(text, filename) {
   return cleaned.startsWith('#') ? cleaned : `# ${markdownHeadingFromFilename(filename)}\n\n${cleaned}`;
 }
 
+function isMarkdownSource(file) {
+  return /\.(md|markdown)$/i.test(String(file?.name || ''));
+}
+
+function prepareRuleDraftForSource() {
+  const form = $('#ruleManageForm');
+  if (!form.elements.previousRevision.value && operationData.rules.length) {
+    const baseRule = operationData.rules.find((rule) => rule.published) || operationData.rules[0];
+    startRuleRevision(baseRule);
+  }
+  if (!operationData.rules.length) {
+    form.elements.effectiveDate.value = localDateValue();
+    if (!form.elements.version.value.trim()) form.elements.version.value = '1.0';
+    if (!form.elements.revisionNote.value.trim()) form.elements.revisionNote.value = '최초 제정';
+  }
+}
+
 async function convertRuleSourceToMarkdown(file) {
+  if (isMarkdownSource(file)) return normalizeExtractedMarkdown(await file.text(), file.name);
   const payload = new FormData();
   payload.set('file', file);
   const result = await apiRequest('/api/bolsso/rules/convert', { method: 'POST', body: payload });
@@ -998,14 +1016,17 @@ $('#convertRuleSource').addEventListener('click', async () => {
   }
   const button = $('#convertRuleSource');
   button.disabled = true;
-  note.textContent = 'NAS 내부 MarkItDown으로 Markdown 초안을 만드는 중…';
+  prepareRuleDraftForSource();
+  note.textContent = isMarkdownSource(file) ? 'Markdown 원문을 편집기에 불러오는 중…' : 'NAS 내부 MarkItDown으로 PDF 원문을 Markdown 초안으로 만드는 중…';
   try {
     const markdown = await convertRuleSourceToMarkdown(file);
     const form = $('#ruleManageForm');
     form.elements.contentMarkdown.value = markdown;
     syncRuleRevisionMetadata();
     if (!form.elements.title.value.trim()) form.elements.title.value = markdownHeadingFromFilename(file.name);
-    note.textContent = 'Markdown 초안을 채웠습니다. 내용과 줄바꿈을 검토한 뒤 저장해 주세요.';
+    note.textContent = ruleRevisionDraft
+      ? '기존 개정본을 승계했습니다. 원문을 검토한 뒤 새 버전과 오늘 시행일로 저장해 주세요.'
+      : 'Markdown 초안을 채웠습니다. 내용과 줄바꿈을 검토한 뒤 저장해 주세요.';
   } catch (error) {
     if (error.message === 'NO_TEXT') {
       note.textContent = '텍스트를 찾지 못했습니다. 스캔 PDF는 Markdown 내용을 직접 입력하거나 붙여넣어 주세요.';

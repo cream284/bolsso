@@ -182,8 +182,8 @@ function renderAdminFinanceDelegationControls() {
 }
 
 function memberRoleLabel(member) {
-  if (member.isAdmin && member.role === 'chair') return '관리자 · 회장';
-  if (member.isAdmin && member.role === 'treasurer') return '관리자 · 총무';
+  if (member.isAdmin && member.role === 'chair') return '회장 · 관리자';
+  if (member.isAdmin && member.role === 'treasurer') return '총무 · 관리자';
   if (member.isAdmin) return '관리자';
   return roleLabel(member.role);
 }
@@ -463,28 +463,23 @@ function renderMembers(items) {
   if (!items.length) return appendEmpty(list, '등록된 회원이 없습니다.');
 
   items.forEach((member) => {
-    const cardRoles = [];
-    if (member.role !== 'admin') cardRoles.push(roleLabel(member.role));
-    if (member.isAdmin || member.role === 'admin') cardRoles.push('관리자');
-    if (!cardRoles.length) cardRoles.push('일반 회원');
-    cardRoles.forEach((cardRole) => {
-      const row = document.createElement('div');
-      row.className = 'record-row';
-      const avatar = document.createElement('span');
-      avatar.className = 'avatar tiny';
-      avatar.textContent = member.name?.trim().charAt(0) || '회';
-      const info = document.createElement('span');
-      const name = document.createElement('strong');
-      name.textContent = member.name || '이름 없음';
-      const detail = document.createElement('small');
-      detail.textContent = cardRole;
-      info.append(name, detail);
-      const badge = document.createElement('span');
-      badge.className = `role-badge ${cardRole === '일반 회원' ? '' : 'operator'}`;
-      badge.textContent = cardRole;
-      row.append(avatar, info, badge);
-      list.append(row);
-    });
+    const roles = memberRoleLabel(member);
+    const row = document.createElement('div');
+    row.className = 'record-row';
+    const avatar = document.createElement('span');
+    avatar.className = 'avatar tiny';
+    avatar.textContent = member.name?.trim().charAt(0) || '회';
+    const info = document.createElement('span');
+    const name = document.createElement('strong');
+    name.textContent = member.name || '이름 없음';
+    const detail = document.createElement('small');
+    detail.textContent = roles;
+    info.append(name, detail);
+    const badge = document.createElement('span');
+    badge.className = `role-badge ${roles === '일반 회원' ? '' : 'operator'}`;
+    badge.textContent = roles;
+    row.append(avatar, info, badge);
+    list.append(row);
   });
 }
 

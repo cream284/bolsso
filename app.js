@@ -278,15 +278,15 @@ function renderMarkdown(target, source) {
     target.append(wrapper);
   };
   const historicalOfficerTable = (startIndex) => {
-    if (lines[startIndex].trim() !== '구분') return null;
+    if (!/^구분\s*$/.test(lines[startIndex])) return null;
     const years = [];
     let cursor = startIndex + 1;
     const skipBlankLines = () => {
       while (cursor < lines.length && !lines[cursor].trim()) cursor += 1;
     };
     skipBlankLines();
-    while (/^\d{4}$/.test(lines[cursor]?.trim() || '')) {
-      years.push(lines[cursor].trim());
+    while (/^(?:19|20)\d{2}(?:년)?$/.test(lines[cursor]?.trim() || '')) {
+      years.push(lines[cursor].trim().replace(/년$/, ''));
       cursor += 1;
       skipBlankLines();
     }
@@ -295,10 +295,19 @@ function renderMarkdown(target, source) {
     const officerRoles = /^(회장|부회장|총무|감사|서기)$/;
     const rows = [];
     while (cursor < lines.length) {
-      const match = lines[cursor].trim().match(/^([^\s]+)\s+(.+)$/);
+      const match = lines[cursor].trim().match(/^(회장|부회장|총무|감사|서기)(?:\s*[:|]\s*|\s+)?(.*)$/);
       if (!match || !officerRoles.test(match[1])) break;
-      rows.push([match[1], ...match[2].trim().split(/\s+/)]);
+      const values = match[2] ? match[2].trim().split(/\s+/) : [];
       cursor += 1;
+      // PDF·문서 변환본은 역할과 각 연도 담당자를 줄마다 나눠 둘 수 있다.
+      while (values.length < years.length && cursor < lines.length) {
+        skipBlankLines();
+        const value = lines[cursor]?.trim() || '';
+        if (!value || officerRoles.test(value) || /^(?:19|20)\d{2}(?:년)?$/.test(value) || /^(#{1,3}\s|제?\d+\s*[장조항.])/.test(value)) break;
+        values.push(value);
+        cursor += 1;
+      }
+      rows.push([match[1], ...values]);
       skipBlankLines();
     }
     return rows.length ? { headers: ['구분', ...years], rows, end: cursor } : null;

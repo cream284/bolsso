@@ -633,12 +633,12 @@ async function loadOperations() {
   if (canManageFinance()) requests.push(
     ['policies', apiRequest(listPath('dues_policies', { sort: '-year' }))],
     ['periods', apiRequest(listPath('dues_periods', { sort: '-year,-month' }))],
-    ['payments', apiRequest(listPath('dues_payments', { sort: '-created' }))],
+    ['payments', apiRequest(listPath('dues_payments'))],
     ['transactions', apiRequest(listPath('transactions', { sort: '-transactedAt' }))]
   );
   if (canManageRules()) requests.push(
     ['chairLedger', apiRequest(listPath('chair_ledger', { sort: '-transactedAt' }))],
-    ['rules', apiRequest(listPath('rules', { sort: '-updated' }))]
+    ['rules', apiRequest(listPath('rules', { sort: '-effectiveDate' }))]
   );
   if (isAdmin() || canManageRules() || canManageFinance()) requests.push(['audits', apiRequest(listPath('audit_logs', { sort: '-occurredAt' }))]);
 

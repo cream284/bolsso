@@ -220,7 +220,7 @@ function renderMarkdown(target, source) {
     const dividerCells = cells(line);
     return dividerCells.length > 1 && dividerCells.every((cell) => /^:?-{3,}:?$/.test(cell));
   };
-  const addTable = (headerCells, rowLines) => {
+  const addTable = (headerCells, rows) => {
     const wrapper = document.createElement('div');
     wrapper.className = 'rule-table-wrap';
     const table = document.createElement('table');
@@ -234,9 +234,8 @@ function renderMarkdown(target, source) {
     head.append(headRow);
     table.append(head);
     const body = document.createElement('tbody');
-    rowLines.forEach((line) => {
+    rows.forEach((rowCells) => {
       const row = document.createElement('tr');
-      const rowCells = cells(line);
       headerCells.forEach((_, cellIndex) => {
         const cellNode = document.createElement('td');
         appendMarkdownInline(cellNode, rowCells[cellIndex] || '');
@@ -248,13 +247,38 @@ function renderMarkdown(target, source) {
     wrapper.append(table);
     target.append(wrapper);
   };
+  const historicalOfficerTable = (startIndex) => {
+    if (lines[startIndex].trim() !== '구분') return null;
+    const years = [];
+    let cursor = startIndex + 1;
+    while (/^\d{4}$/.test(lines[cursor]?.trim() || '')) {
+      years.push(lines[cursor].trim());
+      cursor += 1;
+    }
+    if (years.length < 2) return null;
+
+    const officerRoles = /^(회장|부회장|총무|감사|서기)$/;
+    const rows = [];
+    while (cursor < lines.length) {
+      const match = lines[cursor].trim().match(/^([^\s]+)\s+(.+)$/);
+      if (!match || !officerRoles.test(match[1])) break;
+      rows.push([match[1], ...match[2].trim().split(/\s+/)]);
+      cursor += 1;
+    }
+    return rows.length ? { headers: ['구분', ...years], rows, end: cursor } : null;
+  };
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const heading = line.match(/^(#{1,3})\s+(.+)$/);
     const bullet = line.match(/^\s*[-*]\s+(.+)$/);
     const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-    if (line.includes('|') && tableDivider(lines[index + 1] || '')) {
+    const recoveredTable = historicalOfficerTable(index);
+    if (recoveredTable) {
+      closeList();
+      addTable(recoveredTable.headers, recoveredTable.rows);
+      index = recoveredTable.end - 1;
+    } else if (line.includes('|') && tableDivider(lines[index + 1] || '')) {
       closeList();
       const rowLines = [];
       index += 2;
@@ -263,7 +287,7 @@ function renderMarkdown(target, source) {
         index += 1;
       }
       index -= 1;
-      addTable(cells(line), rowLines);
+      addTable(cells(line), rowLines.map(cells));
     } else if (heading) {
       closeList();
       addTextBlock(`h${heading[1].length}`, heading[2]);

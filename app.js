@@ -516,6 +516,8 @@ async function loadDashboard() {
 }
 
 let operationData = { members: [], directory: [], terms: [], policies: [], periods: [], payments: [], transactions: [], audits: [], rules: [] };
+let ruleRevisionDraft = null;
+let ruleRevisionMetadataManual = false;
 
 function toPbDate(value) {
   return value ? `${value} 00:00:00.000Z` : '';
@@ -911,9 +913,9 @@ function localDateValue() {
 
 function nextRevisionVersion(version) {
   const current = String(version || '').trim();
-  const match = current.match(/^(.*\.)(\d+)$/);
-  if (!match) return current;
-  return `${match[1]}${Number(match[2]) + 1}`;
+  const match = current.match(/^(.*?)(\d+)([^\d]*)$/);
+  if (match) return `${match[1]}${Number(match[2]) + 1}${match[3]}`;
+  return current ? `${current} 개정` : localDateValue().replaceAll('-', '.');
 }
 
 function setRuleRevisionMode(message) {
@@ -922,6 +924,8 @@ function setRuleRevisionMode(message) {
 
 function resetRuleRevisionDraft() {
   const form = $('#ruleManageForm');
+  ruleRevisionDraft = null;
+  ruleRevisionMetadataManual = false;
   form.reset();
   form.elements.previousRevision.value = '';
   form.elements.effectiveDate.value = localDateValue();
@@ -932,17 +936,43 @@ function resetRuleRevisionDraft() {
 function startRuleRevision(rule) {
   if (!rule) return;
   const form = $('#ruleManageForm');
+  ruleRevisionDraft = {
+    id: rule.id,
+    markdown: ruleMarkdown(rule),
+    version: rule.version || '',
+    effectiveDate: String(rule.effectiveDate || '').slice(0, 10)
+  };
+  ruleRevisionMetadataManual = false;
   form.elements.previousRevision.value = rule.id;
   form.elements.title.value = rule.title || '';
-  form.elements.version.value = nextRevisionVersion(rule.version);
-  form.elements.effectiveDate.value = localDateValue();
+  form.elements.version.value = ruleRevisionDraft.version;
+  form.elements.effectiveDate.value = ruleRevisionDraft.effectiveDate;
   form.elements.revisionNote.value = '';
-  form.elements.contentMarkdown.value = ruleMarkdown(rule);
+  form.elements.contentMarkdown.value = ruleRevisionDraft.markdown;
   form.elements.sourceDocument.value = '';
   form.elements.published.checked = false;
-  setRuleRevisionMode(`${rule.version || '기존'} 개정본을 불러왔습니다. 원문을 수정하고 새 버전·시행일·개정 사유를 확인한 뒤 저장하세요. 기본값은 비공개 초안입니다.`);
+  setRuleRevisionMode(`${rule.version || '기존'} 개정본을 불러왔습니다. 원문을 수정하면 새 버전과 오늘 시행일이 자동 설정됩니다. 기본값은 비공개 초안입니다.`);
   $('#ruleManageForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   form.elements.contentMarkdown.focus();
+}
+
+function syncRuleRevisionMetadata() {
+  const form = $('#ruleManageForm');
+  if (!ruleRevisionDraft) return;
+  const changed = form.elements.contentMarkdown.value.trim() !== ruleRevisionDraft.markdown.trim();
+  if (!changed) {
+    if (!ruleRevisionMetadataManual) {
+      form.elements.version.value = ruleRevisionDraft.version;
+      form.elements.effectiveDate.value = ruleRevisionDraft.effectiveDate;
+    }
+    return;
+  }
+  if (!ruleRevisionMetadataManual) {
+    form.elements.version.value = nextRevisionVersion(ruleRevisionDraft.version);
+    form.elements.effectiveDate.value = localDateValue();
+  }
+  if (!form.elements.revisionNote.value.trim()) form.elements.revisionNote.value = `${localDateValue()} 원문 수정`;
+  setRuleRevisionMode(`원문 수정이 감지됐습니다. 버전 ${form.elements.version.value || '새 버전'}와 시행일 ${form.elements.effectiveDate.value}이 자동 설정됐습니다.`);
 }
 
 function normalizeExtractedMarkdown(text, filename) {
@@ -973,6 +1003,7 @@ $('#convertRuleSource').addEventListener('click', async () => {
     const markdown = await convertRuleSourceToMarkdown(file);
     const form = $('#ruleManageForm');
     form.elements.contentMarkdown.value = markdown;
+    syncRuleRevisionMetadata();
     if (!form.elements.title.value.trim()) form.elements.title.value = markdownHeadingFromFilename(file.name);
     note.textContent = 'Markdown 초안을 채웠습니다. 내용과 줄바꿈을 검토한 뒤 저장해 주세요.';
   } catch (error) {
@@ -994,10 +1025,19 @@ $('#previousRevisionSelect').addEventListener('change', (event) => {
 
 $('#resetRuleRevisionDraft').addEventListener('click', resetRuleRevisionDraft);
 
+$('#ruleManageForm').elements.contentMarkdown.addEventListener('input', syncRuleRevisionMetadata);
+['version', 'effectiveDate'].forEach((name) => {
+  $('#ruleManageForm').elements[name].addEventListener('input', () => { ruleRevisionMetadataManual = true; });
+});
+
 $('#ruleManageForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const data = new FormData(form);
+  const markdown = String(data.get('contentMarkdown')).trim();
+  if (ruleRevisionDraft && String(data.get('previousRevision') || '') === ruleRevisionDraft.id && markdown === ruleRevisionDraft.markdown.trim()) {
+    return fieldMessage(form, '원문을 수정한 뒤 새 개정본을 저장해 주세요.');
+  }
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
   fieldMessage(form, 'NAS에 규약을 저장 중…');
@@ -1006,7 +1046,6 @@ $('#ruleManageForm').addEventListener('submit', async (event) => {
     payload.set('title', String(data.get('title')).trim());
     payload.set('version', String(data.get('version')).trim());
     payload.set('effectiveDate', toPbDate(String(data.get('effectiveDate'))));
-    const markdown = String(data.get('contentMarkdown')).trim();
     payload.set('content', markdown);
     payload.set('contentMarkdown', markdown);
     payload.set('revisionNote', String(data.get('revisionNote')).trim());

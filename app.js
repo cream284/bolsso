@@ -606,6 +606,12 @@ function renderRuleRevisions(items) {
     preview.textContent = '미리보기';
     preview.addEventListener('click', () => showRuleRevisionPreview(rule));
     actions.append(preview);
+    const revise = document.createElement('button');
+    revise.type = 'button';
+    revise.className = 'text-button';
+    revise.textContent = '개정하기';
+    revise.addEventListener('click', () => startRuleRevision(rule));
+    actions.append(revise);
     if (!rule.published) {
       const publish = document.createElement('button');
       publish.type = 'button';
@@ -897,6 +903,48 @@ function markdownHeadingFromFilename(filename) {
   return String(filename || '운영 규약').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || '운영 규약';
 }
 
+function localDateValue() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 10);
+}
+
+function nextRevisionVersion(version) {
+  const current = String(version || '').trim();
+  const match = current.match(/^(.*\.)(\d+)$/);
+  if (!match) return current;
+  return `${match[1]}${Number(match[2]) + 1}`;
+}
+
+function setRuleRevisionMode(message) {
+  $('#ruleRevisionMode').textContent = message;
+}
+
+function resetRuleRevisionDraft() {
+  const form = $('#ruleManageForm');
+  form.reset();
+  form.elements.previousRevision.value = '';
+  form.elements.effectiveDate.value = localDateValue();
+  form.elements.published.checked = false;
+  setRuleRevisionMode('새 제정 초안입니다. 기존 개정본을 선택하거나 이력의 개정하기를 누르면 원문을 불러옵니다.');
+}
+
+function startRuleRevision(rule) {
+  if (!rule) return;
+  const form = $('#ruleManageForm');
+  form.elements.previousRevision.value = rule.id;
+  form.elements.title.value = rule.title || '';
+  form.elements.version.value = nextRevisionVersion(rule.version);
+  form.elements.effectiveDate.value = localDateValue();
+  form.elements.revisionNote.value = '';
+  form.elements.contentMarkdown.value = ruleMarkdown(rule);
+  form.elements.sourceDocument.value = '';
+  form.elements.published.checked = false;
+  setRuleRevisionMode(`${rule.version || '기존'} 개정본을 불러왔습니다. 원문을 수정하고 새 버전·시행일·개정 사유를 확인한 뒤 저장하세요. 기본값은 비공개 초안입니다.`);
+  $('#ruleManageForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  form.elements.contentMarkdown.focus();
+}
+
 function normalizeExtractedMarkdown(text, filename) {
   const cleaned = String(text || '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
   if (!cleaned) throw new Error('NO_TEXT');
@@ -940,12 +988,11 @@ $('#convertRuleSource').addEventListener('click', async () => {
 
 $('#previousRevisionSelect').addEventListener('change', (event) => {
   const rule = operationData.rules.find((item) => item.id === event.target.value);
-  if (!rule) return;
-  const form = $('#ruleManageForm');
-  form.elements.title.value = rule.title || '';
-  form.elements.contentMarkdown.value = ruleMarkdown(rule);
-  $('#ruleConversionNote').textContent = '이전 개정본을 Markdown 편집기에 복사했습니다. 버전·시행일·개정 사유를 새로 입력해 주세요.';
+  if (!rule) return resetRuleRevisionDraft();
+  startRuleRevision(rule);
 });
+
+$('#resetRuleRevisionDraft').addEventListener('click', resetRuleRevisionDraft);
 
 $('#ruleManageForm').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -969,7 +1016,7 @@ $('#ruleManageForm').addEventListener('submit', async (event) => {
     const sourceDocument = data.get('sourceDocument');
     if (sourceDocument instanceof File && sourceDocument.size) payload.set('sourceDocument', sourceDocument);
     await apiRequest('/api/collections/rules/records', { method: 'POST', body: payload });
-    form.reset();
+    resetRuleRevisionDraft();
     $('#ruleConversionNote').textContent = '원본은 NAS에만 저장됩니다. 파일을 불러온 뒤 Markdown 초안을 검토하고 수정해 게시하세요.';
     fieldMessage(form, '규약 개정본을 NAS에 저장했습니다.', true);
     await refreshAllData();

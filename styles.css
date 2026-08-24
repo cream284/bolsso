@@ -123,6 +123,7 @@ dialog .primary-button{width:100%;margin-top:22px}
 .rule-content th,.rule-content td{border:1px solid var(--line);padding:9px 8px;text-align:left;vertical-align:top}
 .rule-content th{background:#f0f5e8;font-weight:600}
 .record-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#ruleRevisionMode{padding:10px 12px;border-left:3px solid var(--lime);background:#f4f6ef}
 .rules-modal ol{padding:0;margin:0;list-style:none;counter-reset:rule}
 .rules-modal li{counter-increment:rule;border-top:1px solid var(--line);padding:15px 0 15px 34px;position:relative}
 .rules-modal li:before{content:'0' counter(rule);position:absolute;left:0;top:15px;color:#8fa068;font:11px 'DM Mono',monospace}

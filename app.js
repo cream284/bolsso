@@ -182,6 +182,18 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' }).format(date);
 }
 
+function eventTypeLabel(type) {
+  if (type === 'travel') return '여행';
+  if (type === 'special_meeting') return '특별모임';
+  return '정기모임';
+}
+
+function eventStatusLabel(status) {
+  if (status === 'completed') return '완료';
+  if (status === 'cancelled') return '취소';
+  return '예정';
+}
+
 function plainText(html) {
   const parsed = new DOMParser().parseFromString(html || '', 'text/html');
   return parsed.body.textContent?.trim() || '';
@@ -443,6 +455,36 @@ function renderTransactions(items) {
   });
 }
 
+function renderEvents(events, attendees, members) {
+  const list = $('#eventList');
+  list.replaceChildren();
+  if (!events.length) return appendEmpty(list, '등록된 모임·여행 일정이 없습니다.');
+  events.forEach((event) => {
+    const row = document.createElement('div');
+    row.className = 'record-row event-row';
+    const info = document.createElement('span');
+    const title = document.createElement('strong');
+    title.textContent = `${eventTypeLabel(event.type)} · ${event.title}`;
+    const detail = document.createElement('small');
+    const participantNames = attendees
+      .filter((attendee) => attendee.event === event.id && attendee.status !== 'absent')
+      .map((attendee) => members.find((member) => member.id === attendee.member)?.name || '회원');
+    detail.textContent = [
+      formatDate(event.scheduledAt),
+      event.location,
+      eventStatusLabel(event.status),
+      participantNames.length ? `참석 ${participantNames.join(', ')}` : '참석자 미등록',
+      event.note
+    ].filter(Boolean).join(' · ');
+    info.append(title, detail);
+    const badge = document.createElement('span');
+    badge.className = `event-status ${event.status}`;
+    badge.textContent = eventStatusLabel(event.status);
+    row.append(info, badge);
+    list.append(row);
+  });
+}
+
 function renderRule(items) {
   latestRule = items[0] || null;
   const button = $('#openRules');
@@ -509,17 +551,20 @@ async function loadDashboard() {
     ['회비 기간', apiRequest(listPath('dues_periods', { sort: '-year,-month' }))],
     ['납부 현황', apiRequest(listPath('member_dues_status', { sort: 'memberName' }))],
     ['회비 사용', apiRequest(listPath('member_transactions', { sort: '-transactedAt', perPage: '20' }))],
+    ['모임·여행 일정', apiRequest(listPath('events', { sort: '-scheduledAt' }))],
+    ['참석자 명단', apiRequest(listPath('event_attendees', { sort: '-updated' }))],
     ['운영 규약', apiRequest(listPath('rules', { sort: '-effectiveDate', filter: 'published = true', perPage: '1' }))]
   ];
   const results = await Promise.allSettled(requests.map(([, request]) => request));
   if (!auth || results.some((result) => result.status === 'rejected' && result.reason?.message === 'SESSION_EXPIRED')) return;
 
   const items = results.map((result) => result.status === 'fulfilled' ? result.value.items : []);
-  const [members, periods, dues, transactions, rules] = items;
+  const [members, periods, dues, transactions, events, attendees, rules] = items;
   const currentPeriod = periods.find((item) => item.status === 'open') || periods[0] || null;
   renderMembers(members);
   renderDues(currentPeriod, dues);
   renderTransactions(transactions);
+  renderEvents(events, attendees, members);
   renderRule(rules);
 
   const failures = results.flatMap((result, index) => result.status === 'rejected' ? [requests[index][0]] : []);
@@ -533,7 +578,7 @@ async function loadDashboard() {
   $('#lastUpdated').textContent = `불러오지 못한 항목: ${failures.join(', ')}`;
 }
 
-let operationData = { members: [], directory: [], terms: [], policies: [], periods: [], payments: [], transactions: [], audits: [], rules: [] };
+let operationData = { members: [], directory: [], terms: [], policies: [], periods: [], payments: [], transactions: [], audits: [], rules: [], events: [], eventAttendees: [] };
 let ruleRevisionDraft = null;
 let ruleRevisionMetadataManual = false;
 
@@ -740,6 +785,8 @@ function renderOperationControls() {
   setOptions($('#adminMemberSelect'), members, (member) => `${member.name} · ${member.loginId}`);
   setOptions($('#resetMemberSelect'), members, (member) => `${member.name} · ${member.loginId}`);
   setOptions($('#termMemberSelect'), activeMembers, (member) => `${member.name} · ${member.loginId}`);
+  setOptions($('#eventAttendanceEventSelect'), operationData.events, (event) => `${formatDate(event.scheduledAt)} · ${eventTypeLabel(event.type)} · ${event.title}`);
+  setOptions($('#eventAttendanceMemberSelect'), activeMembers, (member) => member.name);
   const revisionSelect = $('#previousRevisionSelect');
   revisionSelect.replaceChildren();
   const firstOption = document.createElement('option');
@@ -787,7 +834,9 @@ async function loadOperations() {
   );
   if (canManageRules()) requests.push(
     ['chairLedger', apiRequest(listPath('chair_ledger', { sort: '-transactedAt' }))],
-    ['rules', apiRequest(listPath('rules', { sort: '-effectiveDate' }))]
+    ['rules', apiRequest(listPath('rules', { sort: '-effectiveDate' }))],
+    ['events', apiRequest(listPath('events', { sort: '-scheduledAt' }))],
+    ['eventAttendees', apiRequest(listPath('event_attendees', { sort: '-updated' }))]
   );
   if (isAdmin() || canManageRules() || canManageFinance()) requests.push(['audits', apiRequest(listPath('audit_logs', { sort: '-occurredAt' }))]);
 
@@ -976,6 +1025,50 @@ $('#termCreateForm').addEventListener('submit', async (event) => {
     startsOn: `${year}-01-01 00:00:00.000Z`,
     endsOn: `${year}-12-31 23:59:59.000Z`
   }, '해당 연도의 1월~12월 운영진 임기를 등록했습니다.');
+});
+
+$('#eventCreateForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  await submitJsonForm(form, '/api/collections/events/records', {
+    title: String(data.get('title')).trim(),
+    type: String(data.get('type')),
+    scheduledAt: toPbDate(String(data.get('scheduledAt'))),
+    location: String(data.get('location')).trim(),
+    note: String(data.get('note')).trim(),
+    status: String(data.get('status'))
+  }, '일정을 저장했습니다. 참석자 명단을 이어서 등록해 주세요.');
+});
+
+$('#eventAttendanceForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const eventId = String(data.get('event'));
+  const memberId = String(data.get('member'));
+  if (!eventId || !memberId) return fieldMessage(form, '일정과 회원을 선택해 주세요.');
+  const status = String(data.get('status'));
+  const existing = operationData.eventAttendees.find((item) => item.event === eventId && item.member === memberId);
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    if (existing) {
+      await apiRequest(`/api/collections/event_attendees/records/${encodeURIComponent(existing.id)}`, {
+        method: 'PATCH', body: JSON.stringify({ status })
+      });
+    } else {
+      await apiRequest('/api/collections/event_attendees/records', {
+        method: 'POST', body: JSON.stringify({ event: eventId, member: memberId, status })
+      });
+    }
+    fieldMessage(form, '참석자 명단을 저장했습니다.', true);
+    await refreshAllData();
+  } catch {
+    fieldMessage(form, '참석자 명단을 저장하지 못했습니다.');
+  } finally {
+    button.disabled = false;
+  }
 });
 
 function markdownHeadingFromFilename(filename) {

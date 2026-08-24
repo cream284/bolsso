@@ -61,6 +61,7 @@
           <a class="nav-link active" href="#dashboard"><span>⌘</span> 대시보드</a>
           <a class="nav-link" href="#dues"><span>◉</span> 회비 현황</a>
           <a class="nav-link" href="#members"><span>♧</span> 멤버</a>
+          <a class="nav-link" href="#events"><span>◷</span> 모임·여행</a>
           <a class="nav-link" href="#rules"><span>▤</span> 운영 규약</a>
           <a class="nav-link" id="adminNav" href="#adminPanel" hidden><span>⚙</span> 관리자</a>
           <a class="nav-link" id="chairNav" href="#chairPanel" hidden><span>◌</span> 회장</a>
@@ -114,6 +115,11 @@
               <div class="panel-header"><div><span class="label-dot"></span><h2>최근 회비 사용</h2></div><span class="month-label">회원 공개 내역</span></div>
               <div class="record-list" id="transactionList"><p class="empty-message">공개된 거래 내역이 없습니다.</p></div>
             </section>
+          </section>
+
+          <section id="events" class="data-section">
+            <div class="section-title"><span class="label-dot"></span><h2>모임·여행 일정과 기록</h2><span class="month-label">참석자 명단 포함</span></div>
+            <div id="eventList" class="record-list"><p class="empty-message">등록된 모임·여행 일정이 없습니다.</p></div>
           </section>
 
           <section id="rules" class="rules-banner">
@@ -180,6 +186,25 @@
                 <button class="primary-button" type="submit">새 개정본 저장</button><p class="form-message" data-message></p>
               </form>
               <section class="management-list"><h3>규약 개정 이력</h3><div id="ruleRevisionList" class="record-list"></div><button class="text-button danger-button" id="deleteOlderRuleRevisions" type="button">현재 게시본만 남기고 이전 이력 삭제</button><p class="form-message" id="ruleRevisionCleanupMessage" role="alert" aria-live="polite"></p><h3 class="subsection-heading">확정 회계 장부 · 읽기 전용</h3><div id="chairLedgerList" class="record-list"></div></section>
+            </div>
+            <div class="operation-grid">
+              <form class="management-form" id="eventCreateForm">
+                <h3>모임·여행 일정 등록</h3>
+                <label>구분<select name="type"><option value="regular_meeting">정기모임</option><option value="travel">여행</option><option value="special_meeting">특별모임</option></select></label>
+                <label>제목<input name="title" maxlength="120" required placeholder="예: 8월 정기모임" /></label>
+                <label>일시<input name="scheduledAt" type="date" required /></label>
+                <label>장소<input name="location" maxlength="200" placeholder="예: 예시 장소" /></label>
+                <label>기록 메모<textarea name="note" rows="3" maxlength="1000" placeholder="예: 준비 사항 또는 모임 기록"></textarea></label>
+                <label>상태<select name="status"><option value="planned">예정</option><option value="completed">완료</option><option value="cancelled">취소</option></select></label>
+                <button class="primary-button" type="submit">일정 저장</button><p class="form-message" data-message></p>
+              </form>
+              <form class="management-form" id="eventAttendanceForm">
+                <h3>참석자 명단 등록</h3>
+                <label>일정<select name="event" id="eventAttendanceEventSelect" required></select></label>
+                <label>회원<select name="member" id="eventAttendanceMemberSelect" required></select></label>
+                <label>참석 상태<select name="status"><option value="planned">참석 예정</option><option value="attended">참석</option><option value="absent">불참</option></select></label>
+                <button class="primary-button" type="submit">참석자 저장</button><p class="form-message" data-message></p>
+              </form>
             </div>
           </section>
 
@@ -248,6 +273,6 @@
       <button class="primary-button rule-document-button" id="openRuleDocument" type="button" hidden>NAS 원본 파일 보기</button>
       <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
     </dialog>
-    <script src="app.js?v=finance-delegation-20260824"></script>
+    <script src="app.js?v=event-schedule-20260824"></script>
   </body>
 </html>

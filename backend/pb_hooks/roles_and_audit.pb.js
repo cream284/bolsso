@@ -29,6 +29,7 @@ function registerAudit(names) {
       if (name === "dues_policies" || name === "dues_periods" || name === "dues_payments") domain = "dues"
       if (name === "transactions") domain = "ledger"
       if (name === "rules") domain = "rules"
+      if (name === "events" || name === "event_attendees") domain = "events"
       if (!domain) return
       const logs = event.app.findCollectionByNameOrId("audit_logs")
       const audit = new Record(logs)
@@ -48,7 +49,7 @@ function registerAudit(names) {
   onRecordDeleteRequest(handler, ...names)
 }
 
-const auditedCollections = ["members", "officer_terms", "dues_policies", "dues_periods", "dues_payments", "transactions", "rules"]
+const auditedCollections = ["members", "officer_terms", "dues_policies", "dues_periods", "dues_payments", "transactions", "rules", "events", "event_attendees"]
 registerAudit(auditedCollections)
 
 function unpublishOlderRuleRevisions(event) {

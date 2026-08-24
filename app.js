@@ -388,22 +388,28 @@ function renderMembers(items) {
   if (!items.length) return appendEmpty(list, '등록된 회원이 없습니다.');
 
   items.forEach((member) => {
-    const row = document.createElement('div');
-    row.className = 'record-row';
-    const avatar = document.createElement('span');
-    avatar.className = 'avatar tiny';
-    avatar.textContent = member.name?.trim().charAt(0) || '회';
-    const info = document.createElement('span');
-    const name = document.createElement('strong');
-    name.textContent = member.name || '이름 없음';
-    const detail = document.createElement('small');
-    detail.textContent = member.joinedAt ? `가입 ${formatDate(member.joinedAt)}` : memberRoleLabel(member);
-    info.append(name, detail);
-    const badge = document.createElement('span');
-    badge.className = `role-badge ${member.role === 'member' ? '' : 'operator'}`;
-    badge.textContent = memberRoleLabel(member);
-    row.append(avatar, info, badge);
-    list.append(row);
+    const cardRoles = [];
+    if (member.role !== 'admin') cardRoles.push(roleLabel(member.role));
+    if (member.isAdmin || member.role === 'admin') cardRoles.push('관리자');
+    if (!cardRoles.length) cardRoles.push('일반 회원');
+    cardRoles.forEach((cardRole) => {
+      const row = document.createElement('div');
+      row.className = 'record-row';
+      const avatar = document.createElement('span');
+      avatar.className = 'avatar tiny';
+      avatar.textContent = member.name?.trim().charAt(0) || '회';
+      const info = document.createElement('span');
+      const name = document.createElement('strong');
+      name.textContent = member.name || '이름 없음';
+      const detail = document.createElement('small');
+      detail.textContent = cardRole;
+      info.append(name, detail);
+      const badge = document.createElement('span');
+      badge.className = `role-badge ${cardRole === '일반 회원' ? '' : 'operator'}`;
+      badge.textContent = cardRole;
+      row.append(avatar, info, badge);
+      list.append(row);
+    });
   });
 }
 

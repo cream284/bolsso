@@ -1119,7 +1119,7 @@ loginForm.addEventListener('submit', async (event) => {
   const loginId = $('#loginId').value.trim().toLowerCase();
   const password = $('#password').value;
   if (!loginId || !password) {
-    loginMessage.textContent = '로그인 ID와 비밀번호를 모두 입력해 주세요.';
+    loginMessage.textContent = '로그인 ID(기존 회원은 이메일)와 비밀번호를 모두 입력해 주세요.';
     return;
   }
 
@@ -1137,7 +1137,7 @@ loginForm.addEventListener('submit', async (event) => {
     await refreshAllData();
   } catch {
     clearAuth();
-    loginMessage.textContent = '로그인 정보를 확인할 수 없습니다.';
+    loginMessage.textContent = '로그인 ID(기존 회원은 이메일)와 비밀번호를 확인해 주세요.';
     $('#password').value = '';
     $('#password').focus();
   } finally {

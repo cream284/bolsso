@@ -251,9 +251,14 @@ function renderMarkdown(target, source) {
     if (lines[startIndex].trim() !== '구분') return null;
     const years = [];
     let cursor = startIndex + 1;
+    const skipBlankLines = () => {
+      while (cursor < lines.length && !lines[cursor].trim()) cursor += 1;
+    };
+    skipBlankLines();
     while (/^\d{4}$/.test(lines[cursor]?.trim() || '')) {
       years.push(lines[cursor].trim());
       cursor += 1;
+      skipBlankLines();
     }
     if (years.length < 2) return null;
 
@@ -264,6 +269,7 @@ function renderMarkdown(target, source) {
       if (!match || !officerRoles.test(match[1])) break;
       rows.push([match[1], ...match[2].trim().split(/\s+/)]);
       cursor += 1;
+      skipBlankLines();
     }
     return rows.length ? { headers: ['구분', ...years], rows, end: cursor } : null;
   };

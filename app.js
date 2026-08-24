@@ -660,7 +660,7 @@ async function loadDashboard() {
     ['회비 사용', apiRequest(listPath('member_transactions', { sort: '-transactedAt', perPage: '20' }))],
     ['모임·여행 일정', apiRequest(listPath('events', { sort: '-scheduledAt' }))],
     ['참석자 명단', apiRequest(listPath('event_attendees', { sort: '-updated' }))],
-    ['운영 규약', apiRequest(listPath('rules', { sort: '-effectiveDate', filter: 'published = true', perPage: '1' }))]
+    ['운영 규약', apiRequest(listPath('rules', { sort: '-updated', filter: 'published = true', perPage: '1' }))]
   ];
   const results = await Promise.allSettled(requests.map(([, request]) => request));
   if (!auth || results.some((result) => result.status === 'rejected' && result.reason?.message === 'SESSION_EXPIRED')) return;
@@ -698,6 +698,14 @@ function fieldMessage(form, message, ok = false) {
   if (!node) return;
   node.textContent = message;
   node.style.color = ok ? '#527760' : '';
+}
+
+function sortRulesByLastSaved(items) {
+  return [...items].sort((left, right) => {
+    const leftSavedAt = String(left.updated || left.created || left.effectiveDate || '');
+    const rightSavedAt = String(right.updated || right.created || right.effectiveDate || '');
+    return rightSavedAt.localeCompare(leftSavedAt);
+  });
 }
 
 function setOptions(select, items, label) {
@@ -1035,7 +1043,7 @@ async function loadOperations() {
   );
   if (canManageRules()) requests.push(
     ['chairLedger', apiRequest(listPath('chair_ledger', { sort: '-transactedAt' }))],
-    ['rules', apiRequest(listPath('rules', { sort: '-effectiveDate' }))],
+    ['rules', apiRequest(listPath('rules', { sort: '-updated' }))],
     ['events', apiRequest(listPath('events', { sort: '-scheduledAt' }))],
     ['eventAttendees', apiRequest(listPath('event_attendees', { sort: '-updated' }))]
   );
@@ -1043,7 +1051,9 @@ async function loadOperations() {
 
   const results = await Promise.allSettled(requests.map(([, request]) => request));
   results.forEach((result, index) => {
-    if (result.status === 'fulfilled') operationData[requests[index][0]] = result.value.items;
+    if (result.status !== 'fulfilled') return;
+    const key = requests[index][0];
+    operationData[key] = key === 'rules' ? sortRulesByLastSaved(result.value.items) : result.value.items;
   });
   if (!operationData.members.length) operationData.members = operationData.directory;
   renderOperationControls();

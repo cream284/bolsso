@@ -35,7 +35,7 @@ bolsso/
 └── README.md
 ```
 
-각 모듈, 사용자 역할, PocketBase 컬렉션과 NAS 배포 구성의 상세 설명은 [`MODULES.md`](MODULES.md)를 참고합니다.
+공개 가능한 기능 개요는 [`MODULES.md`](MODULES.md)를 참고합니다. 보안과 운영 세부사항은 공개하지 않습니다.
 
 ## 데이터와 보안 원칙
 

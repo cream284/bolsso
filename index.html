@@ -203,7 +203,7 @@
                 <label>개정 사유<input name="revisionNote" maxlength="500" required placeholder="예: 회비 납부 기준 명확화" /></label>
                 <label>원본 파일 (NAS 보관)<input name="sourceDocument" id="ruleSourceDocument" type="file" accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.md,.markdown,.txt,.html,text/plain,text/markdown,text/html,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" /></label>
                 <button class="text-button convert-button" id="convertRuleSource" type="button">원본을 Markdown 편집기에 불러오기</button>
-                <p class="operation-note" id="ruleConversionNote">Markdown 파일은 그대로 불러옵니다. PDF·Word·PowerPoint·Excel·텍스트는 NAS 내부 MarkItDown으로 Markdown으로 변환합니다. 스캔 PDF는 직접 보완해 주세요.</p>
+                <p class="operation-note" id="ruleConversionNote">Markdown 파일은 그대로 불러옵니다. PDF·Word·PowerPoint·Excel·텍스트는 NAS 내부 MarkItDown으로 Markdown으로 변환합니다. <code>역대 임원진</code> 표가 있으면 회장·총무 역임 횟수를 저장 시 자동 갱신합니다. 스캔 PDF는 직접 보완해 주세요.</p>
                 <label>Markdown 내용<textarea name="contentMarkdown" rows="14" required spellcheck="false" placeholder="# 모임 운영 규약&#10;&#10;## 제1조 목적&#10;..." ></textarea></label>
                 <label class="check-label"><input name="published" type="checkbox" /> 검토 후 회원에게 게시</label>
                 <button class="primary-button" type="submit">새 개정본 저장</button><p class="form-message" data-message></p>
@@ -303,6 +303,6 @@
       <button class="primary-button rule-document-button" id="openRuleDocument" type="button" hidden>NAS 원본 파일 보기</button>
       <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
     </dialog>
-    <script src="app.js?v=leadership-cards-20260824"></script>
+    <script src="app.js?v=historical-officer-counts-20260824"></script>
   </body>
 </html>

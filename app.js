@@ -220,6 +220,106 @@ function ruleMarkdown(rule) {
   return String(rule?.contentMarkdown || rule?.content || '').trim();
 }
 
+const historicalOfficerCountStart = '<!-- bolsso:historical-officer-counts:start -->';
+const historicalOfficerCountEnd = '<!-- bolsso:historical-officer-counts:end -->';
+
+function markdownTableCells(line) {
+  const text = String(line || '').trim().replace(/^\|\s?/, '').replace(/\s?\|$/, '');
+  const values = [];
+  let cell = '';
+  let escaped = false;
+  for (const character of text) {
+    if (escaped) {
+      cell += character;
+      escaped = false;
+    } else if (character === '\\') {
+      escaped = true;
+    } else if (character === '|') {
+      values.push(cell.trim());
+      cell = '';
+    } else cell += character;
+  }
+  if (escaped) cell += '\\';
+  values.push(cell.trim());
+  return values;
+}
+
+function isMarkdownTableDivider(line) {
+  if (!String(line || '').includes('|')) return false;
+  const dividerCells = markdownTableCells(line);
+  return dividerCells.length > 1 && dividerCells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function historicalOfficerTableFromMarkdown(lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^#{1,6}\s+역대\s+임원진\s*$/.test(lines[index].trim())) continue;
+    let headerIndex = index + 1;
+    while (headerIndex < lines.length && !lines[headerIndex].trim()) headerIndex += 1;
+    const headers = markdownTableCells(lines[headerIndex]);
+    if (headers[0] !== '구분' || !isMarkdownTableDivider(lines[headerIndex + 1])) continue;
+
+    const rows = [];
+    let cursor = headerIndex + 2;
+    while (cursor < lines.length && lines[cursor].trim() && lines[cursor].includes('|')) {
+      const row = markdownTableCells(lines[cursor]);
+      if (row[0] === '회장' || row[0] === '총무') rows.push(row);
+      cursor += 1;
+    }
+    if (rows.length) return { headers, rows, end: cursor };
+  }
+  return null;
+}
+
+function isOfficerName(value) {
+  const name = String(value || '').replace(/\*\*/g, '').trim();
+  return name && !['-', '—', '없음', '미정', '공석'].includes(name);
+}
+
+function removeHistoricalOfficerCountSection(lines) {
+  const markerStart = lines.indexOf(historicalOfficerCountStart);
+  const markerEnd = lines.indexOf(historicalOfficerCountEnd);
+  if (markerStart >= 0 && markerEnd >= markerStart) {
+    lines.splice(markerStart, markerEnd - markerStart + 1);
+    return;
+  }
+
+  const summaryIndex = lines.findIndex((line) => /^#{1,6}\s+역대\s+임원진\s+역임\s+횟수\s*$/.test(line.trim()));
+  if (summaryIndex < 0) return;
+  const level = (lines[summaryIndex].match(/^(#+)/) || ['', ''])[1].length;
+  let end = summaryIndex + 1;
+  while (end < lines.length) {
+    const heading = lines[end].match(/^(#+)\s+/);
+    if (heading && heading[1].length <= level) break;
+    end += 1;
+  }
+  lines.splice(summaryIndex, end - summaryIndex);
+}
+
+function updateHistoricalOfficerCounts(markdown) {
+  const source = String(markdown || '').replace(/\r/g, '');
+  const lines = source.split('\n');
+  removeHistoricalOfficerCountSection(lines);
+  const table = historicalOfficerTableFromMarkdown(lines);
+  if (!table) return { markdown: source, count: 0, changed: false };
+
+  const counts = new Map();
+  table.rows.forEach((row) => {
+    row.slice(1, table.headers.length).forEach((value) => {
+      if (!isOfficerName(value)) return;
+      const name = String(value).replace(/\*\*/g, '').trim();
+      counts.set(name, (counts.get(name) || 0) + 1);
+    });
+  });
+  if (!counts.size) return { markdown: source, count: 0, changed: false };
+
+  const countLines = [...counts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right, 'ko'))
+    .map(([name, count]) => `${name} - ${count}회`);
+  lines.splice(table.end, 0, '', historicalOfficerCountStart, '### 역대 임원진 역임 횟수', '', ...countLines, historicalOfficerCountEnd, '');
+  const next = lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '');
+  return { markdown: next, count: counts.size, changed: next !== source };
+}
+
 function appendMarkdownInline(target, value) {
   const parts = String(value).split(/(\*\*[^*]+\*\*)/g);
   parts.forEach((part) => {
@@ -241,31 +341,6 @@ function renderMarkdown(target, source) {
     const node = document.createElement(tag);
     appendMarkdownInline(node, text);
     target.append(node);
-  };
-  const cells = (line) => {
-    const text = line.trim().replace(/^\|\s?/, '').replace(/\s?\|$/, '');
-    const values = [];
-    let cell = '';
-    let escaped = false;
-    for (const character of text) {
-      if (escaped) {
-        cell += character;
-        escaped = false;
-      } else if (character === '\\') {
-        escaped = true;
-      } else if (character === '|') {
-        values.push(cell.trim());
-        cell = '';
-      } else cell += character;
-    }
-    if (escaped) cell += '\\';
-    values.push(cell.trim());
-    return values;
-  };
-  const tableDivider = (line) => {
-    if (!line.includes('|')) return false;
-    const dividerCells = cells(line);
-    return dividerCells.length > 1 && dividerCells.every((cell) => /^:?-{3,}:?$/.test(cell));
   };
   const addTable = (headerCells, rows) => {
     const wrapper = document.createElement('div');
@@ -340,7 +415,7 @@ function renderMarkdown(target, source) {
       closeList();
       addTable(recoveredTable.headers, recoveredTable.rows);
       index = recoveredTable.end - 1;
-    } else if (line.includes('|') && tableDivider(lines[index + 1] || '')) {
+    } else if (line.includes('|') && isMarkdownTableDivider(lines[index + 1] || '')) {
       closeList();
       const rowLines = [];
       index += 2;
@@ -349,7 +424,7 @@ function renderMarkdown(target, source) {
         index += 1;
       }
       index -= 1;
-      addTable(cells(line), rowLines.map(cells));
+      addTable(markdownTableCells(line), rowLines.map(markdownTableCells));
     } else if (heading) {
       closeList();
       addTextBlock(`h${heading[1].length}`, heading[2]);
@@ -1382,12 +1457,13 @@ $('#convertRuleSource').addEventListener('click', async () => {
   try {
     const markdown = await convertRuleSourceToMarkdown(file);
     const form = $('#ruleManageForm');
-    form.elements.contentMarkdown.value = markdown;
+    const officerCounts = updateHistoricalOfficerCounts(markdown);
+    form.elements.contentMarkdown.value = officerCounts.markdown;
     syncRuleRevisionMetadata();
     if (!form.elements.title.value.trim()) form.elements.title.value = markdownHeadingFromFilename(file.name);
     note.textContent = ruleRevisionDraft
-      ? '기존 개정본을 승계했습니다. 원문을 검토한 뒤 새 버전과 오늘 시행일로 저장해 주세요.'
-      : 'Markdown 초안을 채웠습니다. 내용과 줄바꿈을 검토한 뒤 저장해 주세요.';
+      ? `기존 개정본을 승계했습니다.${officerCounts.count ? ` 역대 임원진 ${officerCounts.count}명의 역임 횟수도 자동 집계했습니다.` : ''} 원문을 검토한 뒤 새 버전과 오늘 시행일로 저장해 주세요.`
+      : `Markdown 초안을 채웠습니다.${officerCounts.count ? ` 역대 임원진 ${officerCounts.count}명의 역임 횟수도 자동 집계했습니다.` : ''} 내용과 줄바꿈을 검토한 뒤 저장해 주세요.`;
   } catch (error) {
     if (error.message === 'NO_TEXT') {
       note.textContent = '텍스트를 찾지 못했습니다. 스캔 PDF는 Markdown 내용을 직접 입력하거나 붙여넣어 주세요.';
@@ -1416,6 +1492,11 @@ $('#ruleManageForm').elements.contentMarkdown.addEventListener('input', syncRule
 $('#ruleManageForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  const officerCounts = updateHistoricalOfficerCounts(form.elements.contentMarkdown.value);
+  if (officerCounts.changed) {
+    form.elements.contentMarkdown.value = officerCounts.markdown;
+    syncRuleRevisionMetadata();
+  }
   const data = new FormData(form);
   const markdown = String(data.get('contentMarkdown')).trim();
   if (ruleRevisionDraft && String(data.get('previousRevision') || '') === ruleRevisionDraft.id && markdown === ruleRevisionDraft.markdown.trim()) {
@@ -1423,7 +1504,7 @@ $('#ruleManageForm').addEventListener('submit', async (event) => {
   }
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
-  fieldMessage(form, 'NAS에 규약을 저장 중…');
+  fieldMessage(form, officerCounts.count ? `역대 임원진 ${officerCounts.count}명의 역임 횟수를 자동 집계해 NAS에 저장 중…` : 'NAS에 규약을 저장 중…');
   try {
     const payload = new FormData();
     payload.set('title', String(data.get('title')).trim());

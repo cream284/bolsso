@@ -787,6 +787,7 @@ function renderOperationControls() {
   setOptions($('#termMemberSelect'), activeMembers, (member) => `${member.name} · ${member.loginId}`);
   setOptions($('#eventAttendanceEventSelect'), operationData.events, (event) => `${formatDate(event.scheduledAt)} · ${eventTypeLabel(event.type)} · ${event.title}`);
   setOptions($('#eventAttendanceMemberSelect'), activeMembers, (member) => member.name);
+  setOptions($('#eventRecordEventSelect'), operationData.events, (event) => `${formatDate(event.scheduledAt)} · ${eventTypeLabel(event.type)} · ${event.title}`);
   const revisionSelect = $('#previousRevisionSelect');
   revisionSelect.replaceChildren();
   const firstOption = document.createElement('option');
@@ -1066,6 +1067,36 @@ $('#eventAttendanceForm').addEventListener('submit', async (event) => {
     await refreshAllData();
   } catch {
     fieldMessage(form, '참석자 명단을 저장하지 못했습니다.');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$('#eventRecordEventSelect').addEventListener('change', (event) => {
+  const record = operationData.events.find((item) => item.id === event.target.value);
+  if (!record) return;
+  const form = $('#eventRecordForm');
+  form.elements.status.value = record.status;
+  form.elements.note.value = record.note || '';
+});
+
+$('#eventRecordForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const eventId = String(data.get('eventId'));
+  if (!eventId) return fieldMessage(form, '기록할 일정을 선택해 주세요.');
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    await apiRequest(`/api/collections/events/records/${encodeURIComponent(eventId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: String(data.get('status')), note: String(data.get('note')).trim() })
+    });
+    fieldMessage(form, '일정 기록을 저장했습니다.', true);
+    await refreshAllData();
+  } catch {
+    fieldMessage(form, '일정 기록을 저장하지 못했습니다.');
   } finally {
     button.disabled = false;
   }

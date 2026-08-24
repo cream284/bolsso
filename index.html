@@ -179,7 +179,7 @@
                 <label class="check-label"><input name="published" type="checkbox" /> 검토 후 회원에게 게시</label>
                 <button class="primary-button" type="submit">새 개정본 저장</button><p class="form-message" data-message></p>
               </form>
-              <section class="management-list"><h3>규약 개정 이력</h3><div id="ruleRevisionList" class="record-list"></div><h3 class="subsection-heading">확정 회계 장부 · 읽기 전용</h3><div id="chairLedgerList" class="record-list"></div></section>
+              <section class="management-list"><h3>규약 개정 이력</h3><div id="ruleRevisionList" class="record-list"></div><button class="text-button danger-button" id="deleteOlderRuleRevisions" type="button">현재 게시본만 남기고 이전 이력 삭제</button><p class="form-message" id="ruleRevisionCleanupMessage" role="alert" aria-live="polite"></p><h3 class="subsection-heading">확정 회계 장부 · 읽기 전용</h3><div id="chairLedgerList" class="record-list"></div></section>
             </div>
           </section>
 
@@ -244,6 +244,6 @@
       <button class="primary-button rule-document-button" id="openRuleDocument" type="button" hidden>NAS 원본 파일 보기</button>
       <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
     </dialog>
-    <script src="app.js?v=rule-source-upload-20260824"></script>
+    <script src="app.js?v=rule-history-cleanup-20260824"></script>
   </body>
 </html>

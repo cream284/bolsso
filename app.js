@@ -640,6 +640,38 @@ function renderRuleRevisions(items) {
   });
 }
 
+function currentRuleRevision() {
+  return operationData.rules.find((rule) => rule.published) || operationData.rules[0] || null;
+}
+
+async function deleteOlderRuleRevisions() {
+  const button = $('#deleteOlderRuleRevisions');
+  const message = $('#ruleRevisionCleanupMessage');
+  const current = currentRuleRevision();
+  if (!current) {
+    message.textContent = '보존할 규약이 없습니다.';
+    return;
+  }
+  const older = operationData.rules.filter((rule) => rule.id !== current.id);
+  if (!older.length) {
+    message.textContent = '현재 규약만 있어 삭제할 이전 이력이 없습니다.';
+    return;
+  }
+  if (!window.confirm(`현재 게시본 1개를 남기고 이전 개정본 ${older.length}개를 영구 삭제합니다. 계속할까요?`)) return;
+
+  button.disabled = true;
+  message.textContent = '이전 개정 이력을 삭제 중…';
+  try {
+    await Promise.all(older.map((rule) => apiRequest(`/api/collections/rules/records/${encodeURIComponent(rule.id)}`, { method: 'DELETE' })));
+    message.textContent = `현재 규약 1개를 남기고 이전 개정 이력 ${older.length}개를 삭제했습니다.`;
+    await refreshAllData();
+  } catch {
+    message.textContent = '일부 이력을 삭제하지 못했습니다. 새로고침 후 다시 확인해 주세요.';
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderAudit(items) {
   const list = $('#auditList');
   list.replaceChildren();
@@ -1045,6 +1077,7 @@ $('#previousRevisionSelect').addEventListener('change', (event) => {
 });
 
 $('#resetRuleRevisionDraft').addEventListener('click', resetRuleRevisionDraft);
+$('#deleteOlderRuleRevisions').addEventListener('click', deleteOlderRuleRevisions);
 
 $('#ruleManageForm').elements.contentMarkdown.addEventListener('input', syncRuleRevisionMetadata);
 ['version', 'effectiveDate'].forEach((name) => {

@@ -179,7 +179,9 @@ h1{font-size:28px}
 .login-card input:focus{border-color:#66775f;box-shadow:0 0 0 3px #dff25138}
 .login-button{width:100%;margin-top:5px}
 .login-button:disabled{opacity:.65;cursor:wait}
+.signup-link{margin-top:3px;border:0;background:transparent;color:#66775f;padding:7px 0;cursor:pointer;font:12px 'Gowun Dodum',sans-serif;text-align:left}.signup-link span{color:#91a267;font-size:16px;margin-left:4px}
 .form-message{min-height:20px;color:#c75f4b;font-size:12px;text-align:center}
+.signup-approval-message{color:#527760;text-align:left;line-height:1.7;margin:0}
 .privacy-note{border-top:1px solid var(--line);margin-top:22px;padding-top:18px;color:var(--muted);font-size:11px;line-height:1.6}
 .logout-button{width:100%;border:1px solid var(--line);background:transparent;color:var(--muted);padding:10px;cursor:pointer;font:12px 'Gowun Dodum',sans-serif}
 .connection-state{font:10px 'DM Mono',monospace;color:#bf654f}

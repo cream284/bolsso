@@ -3,10 +3,13 @@ const AUTH_KEY = 'bolsso.member.session';
 
 const $ = (selector) => document.querySelector(selector);
 const loginView = $('#loginView');
+const signupView = $('#signupView');
 const passwordChangeView = $('#passwordChangeView');
 const appShell = $('#appShell');
 const loginForm = $('#loginForm');
 const loginMessage = $('#loginMessage');
+const signupRequestForm = $('#signupRequestForm');
+const signupMessage = $('#signupMessage');
 const passwordChangeForm = $('#passwordChangeForm');
 const passwordChangeMessage = $('#passwordChangeMessage');
 const rulesModal = $('#rulesModal');
@@ -93,6 +96,7 @@ async function refreshAuth() {
 
 function showLogin(message = '') {
   appShell.hidden = true;
+  signupView.hidden = true;
   passwordChangeView.hidden = true;
   loginView.hidden = false;
   loginMessage.textContent = message;
@@ -100,9 +104,20 @@ function showLogin(message = '') {
   $('#loginId').focus();
 }
 
+function showSignup() {
+  appShell.hidden = true;
+  passwordChangeView.hidden = true;
+  loginView.hidden = true;
+  signupView.hidden = false;
+  signupMessage.textContent = '';
+  signupRequestForm.reset();
+  signupRequestForm.elements.name.focus();
+}
+
 function showPasswordChange() {
   appShell.hidden = true;
   loginView.hidden = true;
+  signupView.hidden = true;
   passwordChangeView.hidden = false;
   passwordChangeMessage.textContent = '';
   $('#temporaryPassword').value = '';
@@ -113,6 +128,7 @@ function showPasswordChange() {
 
 function showApp() {
   loginView.hidden = true;
+  signupView.hidden = true;
   appShell.hidden = false;
   const name = auth.record.name || '회원';
   const initial = name.trim().charAt(0) || '회';
@@ -587,7 +603,7 @@ async function loadDashboard() {
   $('#lastUpdated').textContent = `불러오지 못한 항목: ${failures.join(', ')}`;
 }
 
-let operationData = { members: [], directory: [], terms: [], policies: [], periods: [], payments: [], transactions: [], audits: [], rules: [], events: [], eventAttendees: [] };
+let operationData = { members: [], directory: [], terms: [], policies: [], periods: [], payments: [], transactions: [], audits: [], rules: [], events: [], eventAttendees: [], signupRequests: [] };
 let ruleRevisionDraft = null;
 let ruleRevisionMetadataManual = false;
 
@@ -788,6 +804,95 @@ function renderAudit(items) {
   });
 }
 
+function createTemporaryPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const random = new Uint32Array(14);
+  window.crypto.getRandomValues(random);
+  return `M-${Array.from(random, (value) => alphabet[value % alphabet.length]).join('')}`;
+}
+
+async function approveSignupRequest(request, button) {
+  if (!window.confirm(`${request.name}님의 가입 요청을 승인할까요?`)) return;
+  const notice = $('#signupApprovalMessage');
+  const temporaryPassword = createTemporaryPassword();
+  button.disabled = true;
+  notice.textContent = '';
+  try {
+    await apiRequest('/api/collections/members/records', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: request.name,
+        loginId: request.loginId,
+        password: temporaryPassword,
+        passwordConfirm: temporaryPassword,
+        role: 'member',
+        isAdmin: false,
+        active: true,
+        mustChangePassword: true,
+        joinedAt: new Date().toISOString()
+      })
+    });
+    await apiRequest(`/api/collections/signup_requests/records/${encodeURIComponent(request.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'approved' })
+    });
+    await refreshAllData();
+    notice.textContent = `${request.name}님 승인 완료. 전달할 임시 비밀번호: ${temporaryPassword} (화면을 닫거나 새로고침하면 다시 볼 수 없습니다.)`;
+  } catch {
+    button.disabled = false;
+    notice.textContent = '승인하지 못했습니다. 같은 아이디의 회원이 이미 있는지 확인해 주세요.';
+  }
+}
+
+async function rejectSignupRequest(request, button) {
+  if (!window.confirm(`${request.name}님의 가입 요청을 거절할까요?`)) return;
+  const notice = $('#signupApprovalMessage');
+  button.disabled = true;
+  notice.textContent = '';
+  try {
+    await apiRequest(`/api/collections/signup_requests/records/${encodeURIComponent(request.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'rejected' })
+    });
+    await refreshAllData();
+    notice.textContent = `${request.name}님의 가입 요청을 거절했습니다. 휴대폰번호는 삭제되었습니다.`;
+  } catch {
+    button.disabled = false;
+    notice.textContent = '가입 요청을 처리하지 못했습니다.';
+  }
+}
+
+function renderSignupRequests(items) {
+  const list = $('#signupRequestList');
+  list.replaceChildren();
+  if (!items.length) return appendEmpty(list, '대기 중인 회원가입 요청이 없습니다.');
+  items.forEach((request) => {
+    const row = document.createElement('div');
+    row.className = 'record-row';
+    const info = document.createElement('span');
+    const title = document.createElement('strong');
+    title.textContent = request.name;
+    const detail = document.createElement('small');
+    detail.textContent = `아이디 ${request.loginId} · 휴대폰 ${request.phone} · ${formatDate(request.requestedAt)} 요청`;
+    info.append(title, detail);
+    const actions = document.createElement('span');
+    actions.className = 'record-actions';
+    const approve = document.createElement('button');
+    approve.type = 'button';
+    approve.className = 'text-button';
+    approve.textContent = '승인';
+    approve.addEventListener('click', () => approveSignupRequest(request, approve));
+    const reject = document.createElement('button');
+    reject.type = 'button';
+    reject.className = 'text-button danger-button';
+    reject.textContent = '거절';
+    reject.addEventListener('click', () => rejectSignupRequest(request, reject));
+    actions.append(approve, reject);
+    row.append(info, actions);
+    list.append(row);
+  });
+}
+
 function renderOperationControls() {
   const members = operationData.members;
   const activeMembers = members.filter((member) => member.active);
@@ -821,6 +926,7 @@ function renderOperationControls() {
   renderChairLedger(operationData.chairLedger || []);
   renderAdminFinanceDelegations(operationData.transactions);
   renderAudit(operationData.audits);
+  renderSignupRequests(operationData.signupRequests);
   renderAdminFinanceDelegationControls();
 }
 
@@ -835,7 +941,10 @@ async function loadOperations() {
     ['directory', apiRequest(listPath('member_directory', { sort: 'name' }))],
     ['terms', apiRequest(listPath('officer_terms', { sort: '-year,office' }))]
   ];
-  if (isAdmin()) requests.push(['members', apiRequest(listPath('members', { sort: 'name' }))]);
+  if (isAdmin()) requests.push(
+    ['members', apiRequest(listPath('members', { sort: 'name' }))],
+    ['signupRequests', apiRequest(listPath('signup_requests', { sort: '-requestedAt', filter: 'status = "pending"' }))]
+  );
   if (canManageFinance()) requests.push(
     ['policies', apiRequest(listPath('dues_policies', { sort: '-year' }))],
     ['periods', apiRequest(listPath('dues_periods', { sort: '-year,-month' }))],
@@ -877,6 +986,41 @@ async function submitJsonForm(form, path, body, successMessage) {
     button.disabled = false;
   }
 }
+
+$('#openSignup').addEventListener('click', showSignup);
+$('#backToLogin').addEventListener('click', () => showLogin());
+
+signupRequestForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const data = new FormData(signupRequestForm);
+  const name = String(data.get('name')).trim();
+  const phone = String(data.get('phone')).trim();
+  const loginId = String(data.get('loginId')).trim().toLowerCase();
+  if (name.length < 2 || !phone || !/^[a-z0-9][a-z0-9._-]{3,39}$/.test(loginId)) {
+    signupMessage.textContent = '이름, 휴대폰번호, 영문 소문자·숫자 4자 이상의 아이디를 확인해 주세요.';
+    return;
+  }
+  const button = signupRequestForm.querySelector('button[type="submit"]');
+  button.disabled = true;
+  button.textContent = '요청 보내는 중…';
+  signupMessage.textContent = '';
+  try {
+    const response = await fetch(`${API_BASE}/api/collections/signup_requests/records`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ name, phone, loginId }),
+      cache: 'no-store'
+    });
+    if (!response.ok) throw new Error('SIGNUP_REQUEST_FAILED');
+    signupRequestForm.reset();
+    signupMessage.textContent = '가입 요청을 접수했습니다. 운영자 승인 후 임시 비밀번호를 안내받아 로그인해 주세요.';
+  } catch {
+    signupMessage.textContent = '가입 요청을 접수하지 못했습니다. 입력한 정보를 확인하거나 운영자에게 문의해 주세요.';
+  } finally {
+    button.disabled = false;
+    button.textContent = '가입 요청 보내기';
+  }
+});
 
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();

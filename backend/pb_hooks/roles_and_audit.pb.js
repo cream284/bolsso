@@ -118,12 +118,6 @@ function encryptMemberData(value) {
   return memberDataEncryptedPrefix + $security.encrypt(text, memberDataEncryptionKey())
 }
 
-function decryptMemberData(value) {
-  const text = String(value || "")
-  if (!text.startsWith(memberDataEncryptedPrefix)) return text
-  return String($security.decrypt(text.slice(memberDataEncryptedPrefix.length), memberDataEncryptionKey()))
-}
-
 function encryptMemberRecord(event) {
   const collection = event.record.collection().name
   if (collection === "members") {
@@ -138,30 +132,41 @@ function encryptMemberRecord(event) {
 onRecordCreateRequest(encryptMemberRecord, "members", "signup_requests")
 onRecordUpdateRequest(encryptMemberRecord, "members", "signup_requests")
 
-function canReadMemberData(auth) {
-  return auth && auth.collection().name === "members" && auth.getBool("active") && !auth.getBool("mustChangePassword")
-}
-
-function isMemberDataAdmin(auth) {
-  return canReadMemberData(auth) && (auth.getBool("isAdmin") || auth.getString("role") === "admin")
-}
-
 onRecordEnrich(function (event) {
+  // PocketBase can execute enrich callbacks in a scope that does not retain
+  // top-level helper bindings. Keep response-only helpers inside the callback.
+  const decryptForEnrich = function (value) {
+    const text = String(value || "")
+    if (!text.startsWith("enc:v1:")) return text
+    const rootKey = $os.getenv("PB_ENCRYPTION_KEY")
+    if (!/^[a-f0-9]{32}$/i.test(rootKey)) {
+      throw new InternalServerError("회원정보 암호화 키가 준비되지 않았습니다.")
+    }
+    const key = $security.sha256("bolsso-member-data-v1:" + rootKey).slice(0, 32)
+    return String($security.decrypt(text.slice("enc:v1:".length), key))
+  }
+  const canReadForEnrich = function (auth) {
+    return auth && auth.collection().name === "members" && auth.getBool("active") && !auth.getBool("mustChangePassword")
+  }
+  const isAdminForEnrich = function (auth) {
+    return canReadForEnrich(auth) && (auth.getBool("isAdmin") || auth.getString("role") === "admin")
+  }
+
   const collection = event.record.collection().name
   const auth = event.requestInfo.auth
   if (collection === "members") {
     // Auth responses enrich before requestInfo.auth is available, but direct record access is already rule protected.
-    event.record.set("name", decryptMemberData(event.record.getString("name")))
+    event.record.set("name", decryptForEnrich(event.record.getString("name")))
   } else if (collection === "member_directory") {
-    if (canReadMemberData(auth)) event.record.set("name", decryptMemberData(event.record.getString("name")))
+    if (canReadForEnrich(auth)) event.record.set("name", decryptForEnrich(event.record.getString("name")))
     else event.record.hide("name")
   } else if (collection === "member_dues_status") {
-    if (canReadMemberData(auth)) event.record.set("memberName", decryptMemberData(event.record.getString("memberName")))
+    if (canReadForEnrich(auth)) event.record.set("memberName", decryptForEnrich(event.record.getString("memberName")))
     else event.record.hide("memberName")
   } else if (collection === "signup_requests") {
-    if (isMemberDataAdmin(auth)) {
-      event.record.set("name", decryptMemberData(event.record.getString("name")))
-      event.record.set("phone", decryptMemberData(event.record.getString("phone")))
+    if (isAdminForEnrich(auth)) {
+      event.record.set("name", decryptForEnrich(event.record.getString("name")))
+      event.record.set("phone", decryptForEnrich(event.record.getString("phone")))
     } else {
       event.record.hide("name")
       event.record.hide("phone")

@@ -2,4 +2,7 @@
 set -eu
 
 ROOT="$(git rev-parse --show-toplevel)"
-exec "$ROOT/scripts/privacy-check.sh"
+"$ROOT/scripts/privacy-check.sh"
+if [ -x "$ROOT/private_data/nas-tests/local-pre-commit.sh" ]; then
+  exec "$ROOT/private_data/nas-tests/local-pre-commit.sh"
+fi

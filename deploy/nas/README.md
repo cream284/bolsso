@@ -26,9 +26,13 @@ Create a **Scheduled Task → User-defined script** with these values:
 - Command: `/volume1/docker/bolsso/bin/pull-deploy.sh`
 
 The deployer compares the GitHub commit SHA, downloads a release only when it
-changed, recreates the containers so PocketBase applies every new migration,
-checks `/api/health`, and restores the previous code release if the health check
-fails. Database migrations should therefore be additive and
+changed, runs a NAS-only private test suite against disposable synthetic data,
+and promotes the release only when those tests pass. It then recreates the
+containers so PocketBase applies every new migration, checks `/api/health`, and
+restores the previous code release if the health check fails. When a private
+test runner is placed beside the installer, it is installed as a required
+deployment gate but is never committed to this public repository. Database
+migrations should therefore be additive and
 backward-compatible; code rollback does not restore a database snapshot.
 
 Running the installer again updates only these fixed deployment files and

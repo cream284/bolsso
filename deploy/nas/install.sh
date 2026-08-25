@@ -13,14 +13,22 @@ if [ ! -f "$SCRIPT_DIR/docker-compose.yml" ] || [ ! -f "$SCRIPT_DIR/pull-deploy.
   printf '%s\n' "The installer must stay beside the NAS deployment files." >&2
   exit 1
 fi
+if [ -f "$SCRIPT_DIR/private-test-runner.sh" ] && ! /bin/sh -n "$SCRIPT_DIR/private-test-runner.sh"; then
+  printf '%s\n' "The private NAS test runner has invalid shell syntax." >&2
+  exit 1
+fi
 
 umask 077
-mkdir -p "$ROOT/runtime" "$ROOT/bin" "$ROOT/data/pb_data" "$ROOT/secrets" "$ROOT/state" "$ROOT/logs" "$ROOT/releases"
+mkdir -p "$ROOT/runtime" "$ROOT/bin" "$ROOT/private-tests" "$ROOT/data/pb_data" "$ROOT/secrets" "$ROOT/state" "$ROOT/logs" "$ROOT/releases"
 
 install -o root -g root -m 0644 "$SCRIPT_DIR/Dockerfile" "$ROOT/runtime/Dockerfile"
 install -o root -g root -m 0644 "$SCRIPT_DIR/Caddyfile" "$ROOT/runtime/Caddyfile"
 install -o root -g root -m 0644 "$SCRIPT_DIR/docker-compose.yml" "$ROOT/runtime/docker-compose.yml"
 install -o root -g root -m 0755 "$SCRIPT_DIR/pull-deploy.sh" "$ROOT/bin/pull-deploy.sh"
+if [ -f "$SCRIPT_DIR/private-test-runner.sh" ]; then
+  install -o root -g root -m 0700 "$SCRIPT_DIR/private-test-runner.sh" "$ROOT/private-tests/run.sh"
+  touch "$ROOT/state/private-tests.required"
+fi
 
 if [ ! -f "$ROOT/secrets/runtime.env" ]; then
   ENCRYPTION_KEY="$(openssl rand -hex 16)"
@@ -40,7 +48,7 @@ if [ -x /usr/syno/bin/synoacltool ]; then
 fi
 find "$ROOT/data/pb_data" -type d -exec chmod 0700 {} \;
 find "$ROOT/data/pb_data" -type f -exec chmod 0600 {} \;
-chown -R root:root "$ROOT/runtime" "$ROOT/bin" "$ROOT/secrets" "$ROOT/state" "$ROOT/logs" "$ROOT/releases"
+chown -R root:root "$ROOT/runtime" "$ROOT/bin" "$ROOT/private-tests" "$ROOT/secrets" "$ROOT/state" "$ROOT/logs" "$ROOT/releases"
 
 if ! /usr/local/bin/docker info >/dev/null 2>&1; then
   /usr/syno/bin/synopkg start Docker || true

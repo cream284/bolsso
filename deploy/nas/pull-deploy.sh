@@ -12,6 +12,8 @@ STATE_FILE="$ROOT/state/deployed.sha"
 LOCK_FILE="$ROOT/state/deploy.lock"
 LOG_FILE="$ROOT/logs/deploy.log"
 DOCKER_COMPOSE=/usr/local/bin/docker-compose
+PRIVATE_TEST_RUNNER="$ROOT/private-tests/run.sh"
+PRIVATE_TEST_REQUIRED="$ROOT/state/private-tests.required"
 
 mkdir -p "$ROOT/state" "$ROOT/logs" "$ROOT/releases"
 touch "$LOG_FILE"
@@ -80,6 +82,21 @@ tar -xzf "$ARCHIVE" --strip-components=1 -C "$STAGED"
 if [ ! -d "$STAGED/backend/pb_migrations" ] || [ ! -d "$STAGED/backend/pb_hooks" ]; then
   log "ERROR: release does not contain the expected backend directories"
   exit 1
+fi
+
+if [ -f "$PRIVATE_TEST_REQUIRED" ] && [ ! -x "$PRIVATE_TEST_RUNNER" ]; then
+  log "ERROR: private NAS test runner is missing"
+  exit 1
+fi
+if [ -x "$PRIVATE_TEST_RUNNER" ]; then
+  log "TEST: running private NAS suite for $REMOTE_SHA"
+  if ! "$PRIVATE_TEST_RUNNER" "$STAGED" "$REMOTE_SHA"; then
+    log "ERROR: private NAS tests failed; production remains unchanged"
+    exit 1
+  fi
+  log "TEST: private NAS suite passed for $REMOTE_SHA"
+else
+  log "TEST: no private NAS suite is configured"
 fi
 
 if [ ! -d "$RELEASE" ]; then

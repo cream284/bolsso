@@ -1104,14 +1104,19 @@ async function submitJsonForm(form, path, body, successMessage) {
 $('#openSignup').addEventListener('click', showSignup);
 $('#backToLogin').addEventListener('click', () => showLogin());
 
+const signupPhoneInput = signupRequestForm.elements.phone;
+signupPhoneInput.addEventListener('input', () => {
+  signupPhoneInput.value = signupPhoneInput.value.replace(/\D/g, '');
+});
+
 signupRequestForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const data = new FormData(signupRequestForm);
   const name = String(data.get('name')).trim();
-  const phone = String(data.get('phone')).trim();
+  const phone = String(data.get('phone')).replace(/\D/g, '');
   const loginId = String(data.get('loginId')).trim().toLowerCase();
-  if (name.length < 2 || !phone || !/^[a-z0-9][a-z0-9._-]{3,39}$/.test(loginId)) {
-    signupMessage.textContent = '이름, 휴대폰번호, 영문 소문자·숫자 4자 이상의 아이디를 확인해 주세요.';
+  if (name.length < 2 || phone.length < 8 || phone.length > 15 || !/^[a-z0-9][a-z0-9._-]{3,39}$/.test(loginId)) {
+    signupMessage.textContent = '이름, 숫자 8~15자리 휴대폰번호, 영문 소문자·숫자 4자 이상의 아이디를 확인해 주세요.';
     return;
   }
   const button = signupRequestForm.querySelector('button[type="submit"]');

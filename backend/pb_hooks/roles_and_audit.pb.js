@@ -61,12 +61,11 @@ onRecordCreateRequest(stampRuleSavedAt, "rules")
 onRecordUpdateRequest(stampRuleSavedAt, "rules")
 
 function normalizeSignupPhone(phone) {
-  const normalized = String(phone || "").trim()
-  const digits = normalized.replace(/\D/g, "")
-  if (!/^[0-9+()\-\s]+$/.test(normalized) || digits.length < 8 || digits.length > 15) {
+  const digits = String(phone || "").replace(/\D/g, "")
+  if (digits.length < 8 || digits.length > 15) {
     throw new BadRequestError("휴대폰번호 형식을 확인해 주세요.")
   }
-  return normalized
+  return digits
 }
 
 function normalizeSignupLoginId(loginId) {

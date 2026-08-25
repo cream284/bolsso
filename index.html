@@ -43,7 +43,7 @@
         <p class="login-description">운영자 승인 후 발급된 임시 비밀번호로 처음 로그인하면, 본인 비밀번호를 설정할 수 있습니다.</p>
         <form id="signupRequestForm" novalidate>
           <label>이름<input name="name" maxlength="60" autocomplete="name" required /></label>
-          <label>휴대폰번호<input name="phone" type="tel" inputmode="tel" maxlength="30" autocomplete="tel" placeholder="숫자와 하이픈 사용 가능" required /></label>
+          <label>휴대폰번호<input name="phone" type="tel" inputmode="numeric" maxlength="15" autocomplete="tel" placeholder="하이픈 없이 숫자만 입력" required /></label>
           <label>아이디<input name="loginId" pattern="[a-z0-9][a-z0-9._-]{3,39}" autocapitalize="none" autocomplete="username" spellcheck="false" placeholder="영문 소문자·숫자 4자 이상" required /></label>
           <button class="primary-button login-button" type="submit">가입 요청 보내기</button>
           <p class="form-message" id="signupMessage" role="alert" aria-live="polite"></p>
@@ -308,6 +308,6 @@
       <button class="primary-button rule-document-button" id="openRuleDocument" type="button" hidden>NAS 원본 파일 보기</button>
       <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
     </dialog>
-    <script src="app.js?v=rule-saved-at-20260824"></script>
+    <script src="app.js?v=signup-phone-digits-20260825"></script>
   </body>
 </html>

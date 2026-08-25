@@ -9,8 +9,12 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-if [ ! -f "$SCRIPT_DIR/docker-compose.yml" ] || [ ! -f "$SCRIPT_DIR/pull-deploy.sh" ]; then
+if [ ! -f "$SCRIPT_DIR/docker-compose.yml" ] || [ ! -f "$SCRIPT_DIR/pull-deploy.sh" ] || [ ! -f "$SCRIPT_DIR/pull-deploy-every-2min.sh" ]; then
   printf '%s\n' "The installer must stay beside the NAS deployment files." >&2
+  exit 1
+fi
+if ! /bin/sh -n "$SCRIPT_DIR/pull-deploy.sh" || ! /bin/sh -n "$SCRIPT_DIR/pull-deploy-every-2min.sh"; then
+  printf '%s\n' "The NAS deployment scripts have invalid shell syntax." >&2
   exit 1
 fi
 if [ -f "$SCRIPT_DIR/private-test-runner.sh" ] && ! /bin/sh -n "$SCRIPT_DIR/private-test-runner.sh"; then
@@ -25,6 +29,7 @@ install -o root -g root -m 0644 "$SCRIPT_DIR/Dockerfile" "$ROOT/runtime/Dockerfi
 install -o root -g root -m 0644 "$SCRIPT_DIR/Caddyfile" "$ROOT/runtime/Caddyfile"
 install -o root -g root -m 0644 "$SCRIPT_DIR/docker-compose.yml" "$ROOT/runtime/docker-compose.yml"
 install -o root -g root -m 0755 "$SCRIPT_DIR/pull-deploy.sh" "$ROOT/bin/pull-deploy.sh"
+install -o root -g root -m 0755 "$SCRIPT_DIR/pull-deploy-every-2min.sh" "$ROOT/bin/pull-deploy-every-2min.sh"
 if [ -f "$SCRIPT_DIR/private-test-runner.sh" ]; then
   install -o root -g root -m 0700 "$SCRIPT_DIR/private-test-runner.sh" "$ROOT/private-tests/run.sh"
   touch "$ROOT/state/private-tests.required"
@@ -74,4 +79,5 @@ printf '%s\n' \
   "Installation finished." \
   "API health: http://127.0.0.1:18090/api/health" \
   "Private admin: http://127.0.0.1:18091/_/" \
+  "Two-minute scheduler command: $ROOT/bin/pull-deploy-every-2min.sh" \
   "Deploy log: $ROOT/logs/deploy.log"

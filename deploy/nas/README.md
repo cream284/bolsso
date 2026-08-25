@@ -22,8 +22,13 @@ DSM password in this repository or a command.
 Create a **Scheduled Task → User-defined script** with these values:
 
 - User: `root`
-- Schedule: every 5 minutes
-- Command: `/volume1/docker/bolsso/bin/pull-deploy.sh`
+- Schedule: every 1 minute
+- Command: `/volume1/docker/bolsso/bin/pull-deploy-every-2min.sh`
+
+DSM does not offer a two-minute interval for script tasks. The one-minute task
+uses the wrapper above, which exits immediately on odd-numbered minutes and
+runs the existing deployer only on even-numbered minutes. GitHub is therefore
+checked every two minutes while DSM remains the owner of the schedule.
 
 The deployer compares the GitHub commit SHA, downloads a release only when it
 changed, runs a NAS-only private test suite against disposable synthetic data,

@@ -109,15 +109,64 @@ function listPath(collection, params = {}) {
   return `/api/collections/${collection}/records?${query}`;
 }
 
+function loginError(code, status = 0) {
+  const error = new Error(code);
+  error.code = code;
+  error.status = status;
+  return error;
+}
+
+function classifyLoginFailure(response, data) {
+  if (response.ok) {
+    if (!data || typeof data !== 'object' || !data.token || !data.record) return 'LOGIN_INVALID_RESPONSE';
+    if (!data.record.active) return 'LOGIN_INACTIVE';
+    return '';
+  }
+
+  if ([400, 401, 403].includes(response.status)) return 'LOGIN_REJECTED';
+  if (response.status === 429) return 'LOGIN_RATE_LIMITED';
+  if (response.status >= 500) return 'LOGIN_SERVER_ERROR';
+  return 'LOGIN_REQUEST_FAILED';
+}
+
+function loginErrorMessage(error) {
+  const code = error?.code || error?.message;
+  if (code === 'LOGIN_NETWORK') {
+    return '로그인 서버에 연결할 수 없습니다. 인터넷 연결 또는 DNS 설정을 확인한 뒤 다시 시도해 주세요.';
+  }
+  if (code === 'LOGIN_REJECTED') {
+    return '아이디 또는 비밀번호가 맞지 않거나 사용이 중지된 계정입니다.';
+  }
+  if (code === 'LOGIN_INACTIVE') {
+    return '사용이 중지된 계정입니다. 운영자에게 문의해 주세요.';
+  }
+  if (code === 'LOGIN_RATE_LIMITED') {
+    return '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  if (code === 'LOGIN_SERVER_ERROR') {
+    return '로그인 서버에 일시적인 문제가 있습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  if (code === 'LOGIN_INVALID_RESPONSE') {
+    return '로그인 응답을 확인하지 못했습니다. 운영자에게 문의해 주세요.';
+  }
+  return '로그인 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+}
+
 async function login(loginId, password) {
-  const response = await fetch(`${API_BASE}/api/collections/members/auth-with-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ identity: loginId, password }),
-    cache: 'no-store'
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}/api/collections/members/auth-with-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ identity: loginId, password }),
+      cache: 'no-store'
+    });
+  } catch {
+    throw loginError('LOGIN_NETWORK');
+  }
   const data = await response.json().catch(() => null);
-  if (!response.ok || !data?.token || !data?.record?.active) throw new Error('LOGIN_FAILED');
+  const failure = classifyLoginFailure(response, data);
+  if (failure) throw loginError(failure, response.status);
   saveAuth(data);
 }
 
@@ -1205,9 +1254,9 @@ loginForm.addEventListener('submit', async (event) => {
     }
     showApp();
     await refreshAllData();
-  } catch {
+  } catch (error) {
     clearAuth();
-    loginMessage.textContent = '로그인 ID와 비밀번호를 확인해 주세요.';
+    loginMessage.textContent = loginErrorMessage(error);
     $('#password').value = '';
     $('#password').focus();
   } finally {

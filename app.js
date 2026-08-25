@@ -13,9 +13,34 @@ const signupMessage = $('#signupMessage');
 const passwordChangeForm = $('#passwordChangeForm');
 const passwordChangeMessage = $('#passwordChangeMessage');
 const rulesModal = $('#rulesModal');
+const sidebar = $('.sidebar');
+const mobileSidebarMedia = window.matchMedia('(max-width: 800px)');
 
 let auth = loadAuth();
 let latestRule = null;
+let sidebarPageScroll = 0;
+
+function setSidebarOpen(open) {
+  const wasLocked = document.body.classList.contains('sidebar-open');
+  sidebar.classList.toggle('open', open);
+
+  if (!mobileSidebarMedia.matches) {
+    document.body.classList.remove('sidebar-open');
+    document.body.style.top = '';
+    if (wasLocked) window.scrollTo(0, sidebarPageScroll);
+    return;
+  }
+
+  if (open && !wasLocked) {
+    sidebarPageScroll = window.scrollY;
+    document.body.style.top = `-${sidebarPageScroll}px`;
+    document.body.classList.add('sidebar-open');
+  } else if (!open && wasLocked) {
+    document.body.classList.remove('sidebar-open');
+    document.body.style.top = '';
+    window.scrollTo(0, sidebarPageScroll);
+  }
+}
 
 function loadAuth() {
   try {
@@ -95,6 +120,7 @@ async function refreshAuth() {
 }
 
 function showLogin(message = '') {
+  setSidebarOpen(false);
   appShell.hidden = true;
   signupView.hidden = true;
   passwordChangeView.hidden = true;
@@ -1689,6 +1715,7 @@ $('#transactionConfirmForm').addEventListener('submit', async (event) => {
 });
 
 $('#logoutButton').addEventListener('click', () => {
+  setSidebarOpen(false);
   clearAuth();
   showLogin('안전하게 로그아웃되었습니다.');
 });
@@ -1706,12 +1733,13 @@ rulesModal.addEventListener('click', (event) => {
   if (event.target === rulesModal) rulesModal.close();
 });
 
-$('.menu-button').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
+$('.menu-button').addEventListener('click', () => setSidebarOpen(!sidebar.classList.contains('open')));
 document.querySelectorAll('.nav-link').forEach((link) => link.addEventListener('click', () => {
   document.querySelectorAll('.nav-link').forEach((item) => item.classList.remove('active'));
   link.classList.add('active');
-  $('.sidebar').classList.remove('open');
+  setSidebarOpen(false);
 }));
+mobileSidebarMedia.addEventListener('change', () => setSidebarOpen(false));
 
 (async () => {
   if (!auth) return showLogin();

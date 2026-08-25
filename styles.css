@@ -132,6 +132,11 @@ dialog .primary-button{width:100%;margin-top:22px}
 .rules-modal li:before{content:'0' counter(rule);position:absolute;left:0;top:15px;color:#8fa068;font:11px 'DM Mono',monospace}
 .rules-modal li strong,.rules-modal li span{display:block}
 .rules-modal li span{font-size:12px;color:var(--muted);margin-top:5px}
+.scroll-to-top{position:fixed;right:calc(20px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));z-index:3;width:46px;height:46px;border:1px solid #516158;border-radius:50%;background:var(--ink);color:var(--lime);box-shadow:0 10px 28px #26342e3d;font:20px 'DM Mono',monospace;display:grid;place-items:center;cursor:pointer;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(10px);transition:opacity .18s,transform .18s,visibility .18s}
+.scroll-to-top.visible{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0)}
+.scroll-to-top:focus-visible{outline:3px solid #dff25180;outline-offset:3px}
+@media(hover:hover){.scroll-to-top:hover{background:#31443b;transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){.scroll-to-top{transition:none}}
 @media(max-width:800px){body{overflow-x:hidden}
 body.sidebar-open{position:fixed;left:0;right:0;width:100%;height:100vh;height:100dvh;overflow:hidden;touch-action:none}
 .shell{display:block}

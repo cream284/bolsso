@@ -14,6 +14,7 @@ const passwordChangeForm = $('#passwordChangeForm');
 const passwordChangeMessage = $('#passwordChangeMessage');
 const rulesModal = $('#rulesModal');
 const sidebar = $('.sidebar');
+const scrollToTopButton = $('#scrollToTop');
 const mobileSidebarMedia = window.matchMedia('(max-width: 800px)');
 
 let auth = loadAuth();
@@ -28,6 +29,7 @@ function setSidebarOpen(open) {
     document.body.classList.remove('sidebar-open');
     document.body.style.top = '';
     if (wasLocked) window.scrollTo(0, sidebarPageScroll);
+    updateScrollToTopButton();
     return;
   }
 
@@ -40,6 +42,12 @@ function setSidebarOpen(open) {
     document.body.style.top = '';
     window.scrollTo(0, sidebarPageScroll);
   }
+  updateScrollToTopButton();
+}
+
+function updateScrollToTopButton() {
+  const shouldShow = !appShell.hidden && window.scrollY > 160 && !document.body.classList.contains('sidebar-open');
+  scrollToTopButton.classList.toggle('visible', shouldShow);
 }
 
 function loadAuth() {
@@ -1749,6 +1757,12 @@ document.querySelectorAll('.nav-link').forEach((link) => link.addEventListener('
   setSidebarOpen(false);
 }));
 mobileSidebarMedia.addEventListener('change', () => setSidebarOpen(false));
+window.addEventListener('scroll', updateScrollToTopButton, { passive: true });
+scrollToTopButton.addEventListener('click', () => {
+  const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+  window.scrollTo({ top: 0, behavior });
+});
+updateScrollToTopButton();
 
 (async () => {
   if (!auth) return showLogin();

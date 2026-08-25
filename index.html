@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=Gowun+Dodum&amp;family=Playfair+Display:ital,wght@0,600;0,700;1,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=mobile-interaction-20260825" />
+    <link rel="stylesheet" href="styles.css?v=scroll-top-20260825" />
   </head>
   <body>
     <section class="login-view" id="loginView">
@@ -300,6 +300,9 @@
           </section>
         </section>
       </main>
+      <button class="scroll-to-top" id="scrollToTop" type="button" aria-label="맨 위로 이동">
+        <span aria-hidden="true">↑</span>
+      </button>
     </div>
 
     <dialog id="rulesModal" class="rules-modal">
@@ -308,6 +311,6 @@
       <button class="primary-button rule-document-button" id="openRuleDocument" type="button" hidden>NAS 원본 파일 보기</button>
       <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
     </dialog>
-    <script src="app.js?v=mobile-interaction-20260825"></script>
+    <script src="app.js?v=scroll-top-20260825"></script>
   </body>
 </html>

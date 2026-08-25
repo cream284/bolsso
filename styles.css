@@ -238,4 +238,5 @@ th{font:10px 'DM Mono',monospace;color:var(--muted);letter-spacing:.06em;backgro
 .convert-button{width:max-content;padding:0;text-decoration:underline;text-underline-offset:3px}.subsection-heading{margin-top:26px!important;padding-top:20px;border-top:1px solid var(--line)}
 @media(max-width:800px){.operation-grid,.chair-grid{grid-template-columns:1fr}.operation-panel{margin-top:50px}.management-form,.management-list{padding:18px}}
 @media(max-width:800px){.last-updated{align-self:start}.rule-link{display:inline-block;margin:18px 0 0}.data-section{margin-top:44px}}
+@media(max-width:800px){input:not([type="checkbox"]):not([type="radio"]),select,textarea{font-size:16px!important}}
 @media(max-width:450px){.login-card{padding:34px 24px}.login-card h1{font-size:27px}.login-brand{margin-bottom:36px}.connection-state{display:none}th,td{padding:12px}.data-grid{gap:42px}}

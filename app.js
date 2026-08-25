@@ -207,11 +207,15 @@ function renderAdminFinanceDelegationControls() {
   $('#adminFinanceDelegationNotice').hidden = !delegated;
 }
 
+function memberRoleLabels(member) {
+  if (member.isAdmin && member.role === 'chair') return ['회장', '관리자'];
+  if (member.isAdmin && member.role === 'treasurer') return ['총무', '관리자'];
+  if (member.isAdmin) return ['관리자'];
+  return [roleLabel(member.role)];
+}
+
 function memberRoleLabel(member) {
-  if (member.isAdmin && member.role === 'chair') return '회장 · 관리자';
-  if (member.isAdmin && member.role === 'treasurer') return '총무 · 관리자';
-  if (member.isAdmin) return '관리자';
-  return roleLabel(member.role);
+  return memberRoleLabels(member).join(' · ');
 }
 
 function formatWon(value) {
@@ -489,7 +493,7 @@ function renderMembers(items) {
   if (!items.length) return appendEmpty(list, '등록된 회원이 없습니다.');
 
   items.forEach((member) => {
-    const roles = memberRoleLabel(member);
+    const roles = memberRoleLabels(member);
     const row = document.createElement('div');
     row.className = 'record-row';
     const avatar = document.createElement('span');
@@ -499,12 +503,17 @@ function renderMembers(items) {
     const name = document.createElement('strong');
     name.textContent = member.name || '이름 없음';
     const detail = document.createElement('small');
-    detail.textContent = roles;
+    detail.textContent = roles.join(' · ');
     info.append(name, detail);
-    const badge = document.createElement('span');
-    badge.className = `role-badge ${roles === '일반 회원' ? '' : 'operator'}`;
-    badge.textContent = roles;
-    row.append(avatar, info, badge);
+    const badgeGroup = document.createElement('span');
+    badgeGroup.className = 'role-badge-group';
+    roles.forEach((role) => {
+      const badge = document.createElement('span');
+      badge.className = `role-badge ${role === '일반 회원' ? '' : 'operator'}`;
+      badge.textContent = role;
+      badgeGroup.append(badge);
+    });
+    row.append(avatar, info, badgeGroup);
     list.append(row);
   });
 }

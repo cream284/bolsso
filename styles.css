@@ -200,6 +200,7 @@ th{font:10px 'DM Mono',monospace;color:var(--muted);letter-spacing:.06em;backgro
 .record-row>span:nth-child(2){display:grid;gap:3px;flex:1}
 .record-row strong{font-size:12px}
 .record-row small{color:var(--muted);font-size:10px}
+.role-badge-group{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex:0 0 auto;white-space:nowrap}
 .role-badge,.payment-badge{border:1px solid #d0d5cc;border-radius:16px;padding:4px 9px;font-size:10px;color:var(--muted);white-space:nowrap}
 .role-badge.operator{background:#f1f6df;border-color:#d4dfae;color:#667644}
 .payment-badge.paid{background:#edf6e7;border-color:#c8dcb9;color:#59744e}

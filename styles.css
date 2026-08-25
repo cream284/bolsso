@@ -117,7 +117,11 @@ dialog h2{font-size:25px;font-weight:normal;margin:9px 0 24px}
 dialog label{display:grid;gap:7px;font-size:12px;margin-top:15px}
 dialog input{font:inherit;padding:11px;border:1px solid var(--line);background:#fff;width:100%}
 dialog .primary-button{width:100%;margin-top:22px}
-.rules-modal{width:min(550px,calc(100% - 32px))}
+.rules-modal{width:min(550px,calc(100% - 32px));max-height:calc(100dvh - 32px);padding:0;overflow:hidden}
+.rules-modal[open]{display:flex;flex-direction:column}
+.rules-modal-header{position:relative;flex:0 0 auto;padding:34px 34px 0;background:#fffdf8}
+.rules-modal-header .rule-meta{margin:-14px 0 20px}
+.rules-modal-body{min-height:0;flex:1 1 auto;overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;padding:0 34px 34px}
 .rule-table-wrap{max-width:100%;overflow-x:auto;margin:18px 0}
 .rule-content table{width:100%;min-width:max-content;border-collapse:collapse;margin:0;font-size:13px;overflow-wrap:anywhere}
 .rule-content th,.rule-content td{border:1px solid var(--line);padding:9px 8px;text-align:left;vertical-align:top}

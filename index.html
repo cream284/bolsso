@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=Gowun+Dodum&amp;family=Playfair+Display:ital,wght@0,600;0,700;1,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=scroll-top-20260825" />
+    <link rel="stylesheet" href="styles.css?v=sticky-rules-header-20260825" />
   </head>
   <body>
     <section class="login-view" id="loginView">
@@ -306,10 +306,17 @@
     </div>
 
     <dialog id="rulesModal" class="rules-modal">
-      <button class="close-dialog" aria-label="닫기">×</button><span class="eyebrow">CLUB GUIDELINES</span><h2 id="rulesModalTitle">운영 규약</h2>
-      <p class="rule-meta" id="rulesModalMeta"></p><div class="rule-content" id="rulesModalContent"></div>
-      <button class="primary-button rule-document-button" id="openRuleDocument" type="button" hidden>NAS 원본 파일 보기</button>
-      <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
+      <header class="rules-modal-header">
+        <button class="close-dialog" aria-label="닫기">×</button>
+        <span class="eyebrow">CLUB GUIDELINES</span>
+        <h2 id="rulesModalTitle">운영 규약</h2>
+        <p class="rule-meta" id="rulesModalMeta"></p>
+      </header>
+      <div class="rules-modal-body">
+        <div class="rule-content" id="rulesModalContent"></div>
+        <button class="primary-button rule-document-button" id="openRuleDocument" type="button" hidden>NAS 원본 파일 보기</button>
+        <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
+      </div>
     </dialog>
     <script src="app.js?v=scroll-top-20260825"></script>
   </body>

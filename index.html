@@ -49,7 +49,7 @@
           <p class="form-message" id="signupMessage" role="alert" aria-live="polite"></p>
         </form>
         <button class="signup-link" id="backToLogin" type="button">로그인으로 돌아가기</button>
-        <p class="privacy-note">가입 요청 정보는 개인 NAS에서 승인 처리용으로만 보관되며, 승인 또는 거절 후 휴대폰번호는 삭제됩니다.</p>
+        <p class="privacy-note">가입 요청 정보는 개인 NAS에서 승인 처리용으로만 보관되며, 승인 또는 거절 즉시 요청서의 이름·휴대폰번호·아이디가 삭제됩니다. 승인된 회원의 이름과 로그인 ID만 회원 계정에 보관됩니다.</p>
       </div>
     </section>
 
@@ -86,7 +86,7 @@
           <a class="nav-link" href="#events"><span>◷</span> 모임·여행</a>
           <a class="nav-link" href="#rules"><span>▤</span> 운영 규약</a>
           <a class="nav-link" id="adminNav" href="#adminPanel" hidden><span>⚙</span> 관리자</a>
-          <a class="nav-link" id="chairNav" href="#chairPanel" hidden><span>◌</span> 회장</a>
+          <a class="nav-link" id="chairNav" href="#chairPanel" hidden><span>◌</span> <span id="chairNavLabel">회장</span></a>
           <a class="nav-link" id="treasurerNav" href="#treasurerPanel" hidden><span>₩</span> 총무</a>
           <a class="nav-link" id="auditNav" href="#auditPanel" hidden><span>◷</span> 감사 로그</a>
         </nav>
@@ -186,7 +186,7 @@
                 <label>연도<input name="year" type="number" min="2020" max="2100" required /></label>
                 <label>직책<select name="office"><option value="chair">회장</option><option value="treasurer">총무</option></select></label>
                 <label>회원<select name="member" id="termMemberSelect" required></select></label>
-                <button class="primary-button" type="submit">1월~12월 임기 등록</button><p class="form-message" data-message></p>
+                <button class="primary-button" type="submit">1월~12월 임기 등록·정정</button><p class="form-message" data-message></p>
               </form>
             </div>
             <div class="management-list"><h3>운영진 임기 이력</h3><div id="termList" class="record-list"></div></div>
@@ -194,8 +194,8 @@
           </section>
 
           <section class="operation-panel" id="chairPanel" hidden>
-            <div class="section-title"><span class="label-dot"></span><h2>회장 · 규약과 확정 장부</h2></div>
-            <div class="operation-grid chair-grid">
+            <div class="section-title"><span class="label-dot"></span><h2 id="chairPanelTitle">회장 · 규약과 확정 장부</h2></div>
+            <div class="operation-grid chair-grid" id="ruleManagementGrid">
               <form class="management-form" id="ruleManageForm">
                 <h3>운영 규약 개정·게시</h3>
                 <p class="operation-note">첫 제정은 PDF 또는 Markdown으로 올릴 수 있습니다. 이후 PDF·Markdown 업로드는 현재 게시본을 자동 승계해 새 버전과 오늘 시행일을 만듭니다. 기존 규약은 직접 덮어쓰지 않습니다.</p>
@@ -215,7 +215,7 @@
               </form>
               <section class="management-list"><h3>규약 개정 이력</h3><div id="ruleRevisionList" class="record-list"></div><button class="text-button danger-button" id="deleteOlderRuleRevisions" type="button">현재 게시본만 남기고 이전 이력 삭제</button><p class="form-message" id="ruleRevisionCleanupMessage" role="alert" aria-live="polite"></p><h3 class="subsection-heading">확정 회계 장부 · 읽기 전용</h3><div id="chairLedgerList" class="record-list"></div></section>
             </div>
-            <div class="operation-grid">
+            <div class="operation-grid" id="eventManagementGrid">
               <form class="management-form" id="eventCreateForm">
                 <h3>모임·여행 일정 등록</h3>
                 <label>구분<select name="type"><option value="regular_meeting">정기모임</option><option value="travel">여행</option><option value="special_meeting">특별모임</option></select></label>
@@ -230,15 +230,19 @@
                 <h3>참석자 명단 등록</h3>
                 <label>일정<select name="event" id="eventAttendanceEventSelect" required></select></label>
                 <label>회원<select name="member" id="eventAttendanceMemberSelect" required></select></label>
-                <label>참석 상태<select name="status"><option value="planned">참석 예정</option><option value="attended">참석</option><option value="absent">불참</option></select></label>
+                <label>참석 상태<select name="status"><option value="planned">참석 예정</option><option value="attended">참석</option><option value="absent">불참</option><option value="remove">명단에서 제거</option></select></label>
                 <button class="primary-button" type="submit">참석자 저장</button><p class="form-message" data-message></p>
               </form>
               <form class="management-form" id="eventRecordForm">
-                <h3>일정 기록 갱신</h3>
+                <h3>일정 수정·종료·기록</h3>
                 <label>일정<select name="eventId" id="eventRecordEventSelect" required></select></label>
+                <label>구분<select name="type"><option value="regular_meeting">정기모임</option><option value="travel">여행</option><option value="special_meeting">특별모임</option></select></label>
+                <label>제목<input name="title" maxlength="120" required /></label>
+                <label>일시<input name="scheduledAt" type="date" required /></label>
+                <label>장소<input name="location" maxlength="200" /></label>
                 <label>상태<select name="status"><option value="planned">예정</option><option value="completed">완료</option><option value="cancelled">취소</option></select></label>
                 <label>기록 메모<textarea name="note" rows="4" maxlength="1000" placeholder="예: 모임 결과와 다음 안내"></textarea></label>
-                <button class="primary-button" type="submit">기록 저장</button><p class="form-message" data-message></p>
+                <button class="primary-button" type="submit">일정 수정 저장</button><p class="form-message" data-message></p>
               </form>
             </div>
           </section>
@@ -249,12 +253,13 @@
             <p class="operation-note admin-finance-delegation-notice" id="adminFinanceDelegationNotice" hidden>관리자 재정 대행 모드입니다. 총무 부재·긴급 상황 등 대행 사유를 남겨야 하며, 회장 장부에 관리자 대행으로 표시됩니다.</p>
             <div class="operation-grid">
               <form class="management-form" id="policyCreateForm">
-                <h3>연도 회비 정책</h3>
+                <h3>연도 회비 정책 등록·정정</h3>
                 <label>적용 연도<input name="year" type="number" min="2020" max="2100" required /></label>
                 <label>월납 금액<input name="monthlyAmount" type="number" min="0" required /></label>
                 <label>연납 금액<input name="annualAmount" type="number" min="0" required /></label>
                 <label>납부일<input name="dueDay" type="number" min="1" max="31" required /></label>
-                <button class="primary-button" type="submit">정책 저장</button><p class="form-message" data-message></p>
+                <label class="check-label"><input name="active" type="checkbox" checked /> 현재 사용 정책</label>
+                <button class="primary-button" type="submit">정책 등록·정정</button><p class="form-message" data-message></p>
               </form>
               <form class="management-form" id="periodCreateForm">
                 <h3>회비 기간 생성</h3>
@@ -262,7 +267,8 @@
                 <label>방식<select name="billingType" id="billingType"><option value="monthly">월납</option><option value="annual">연납</option></select></label>
                 <label>월(연납은 연간 전용 기간으로 자동 설정)<input name="month" id="periodMonth" type="number" min="1" max="13" value="1" required /></label>
                 <label>납부 기한<input name="dueDate" type="date" required /></label>
-                <button class="primary-button" type="submit">기간·납부행 생성</button><p class="form-message" data-message></p>
+                <label>기간 상태<select name="status"><option value="open">진행 중</option><option value="closed">마감</option></select></label>
+                <button class="primary-button" type="submit">기간 생성·정정·마감</button><p class="form-message" data-message></p>
               </form>
               <form class="management-form" id="paymentUpdateForm">
                 <h3>회원별 납부 상태</h3>
@@ -271,7 +277,8 @@
                 <button class="primary-button" type="submit">상태 저장</button><p class="form-message" data-message></p>
               </form>
               <form class="management-form" id="transactionCreateForm">
-                <h3>수입·지출 수동 등록</h3>
+                <h3>수입·지출 초안 등록·정정</h3>
+                <label>수정할 초안<select name="transactionId" id="draftTransactionSelect"><option value="">새 초안</option></select></label>
                 <label>거래일<input name="transactedAt" type="date" required /></label>
                 <label>구분<select name="type"><option value="income">수입</option><option value="expense">지출</option></select></label>
                 <label>항목<input name="category" maxlength="80" required /></label>
@@ -281,7 +288,8 @@
                 <label data-admin-finance-delegation hidden>관리자 대행 사유<textarea name="adminDelegationReason" rows="3" maxlength="500" placeholder="예: 총무 부재로 긴급 지출을 대행합니다."></textarea></label>
                 <label>카카오뱅크 증빙(선택)<input name="evidence" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" /></label>
                 <label class="check-label"><input name="visibleToMembers" type="checkbox" checked /> 회원 공개</label>
-                <button class="primary-button" type="submit">초안 장부 등록</button><p class="form-message" data-message></p>
+                <button class="primary-button" type="submit">초안 장부 저장</button>
+                <button class="text-button danger-button" id="deleteDraftTransaction" type="button">선택 초안 삭제</button><p class="form-message" data-message></p>
               </form>
               <form class="management-form" id="transactionConfirmForm">
                 <h3>장부 확정</h3>
@@ -318,6 +326,6 @@
         <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
       </div>
     </dialog>
-    <script src="app.js?v=login-errors-20260826"></script>
+    <script src="app.js?v=service-crud-20260826"></script>
   </body>
 </html>

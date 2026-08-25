@@ -221,7 +221,8 @@ function showApp() {
   $('#sidebarAvatar').textContent = initial;
   $('#topAvatar').textContent = initial;
   $('#adminNav').hidden = !isAdmin();
-  $('#chairNav').hidden = !canManageRules();
+  $('#chairNav').hidden = !(canManageRules() || canManageEvents());
+  $('#chairNavLabel').textContent = canManageRules() ? '회장' : '모임·여행';
   $('#treasurerNav').hidden = !canManageFinance();
   $('#auditNav').hidden = !(isAdmin() || canManageRules() || canManageFinance());
   renderAdminFinanceDelegationControls();
@@ -245,6 +246,10 @@ function canManageRules() {
 
 function canManageFinance() {
   return isAdmin() || auth?.record?.role === 'treasurer';
+}
+
+function canManageEvents() {
+  return isAdmin() || auth?.record?.role === 'chair' || auth?.record?.role === 'treasurer';
 }
 
 function isAdminFinanceDelegate() {
@@ -595,8 +600,29 @@ function renderMemberRecords(items) {
       info.append(name, detail);
       const badge = document.createElement('span');
       badge.className = `role-badge ${member.active ? 'operator' : ''}`;
-      badge.textContent = member.isAdmin ? '시스템 관리자' : status;
+      badge.textContent = member.anonymizedAt ? '개인정보 파기됨' : (member.isAdmin ? '시스템 관리자' : status);
       row.append(info, badge);
+      if (!member.active && !member.anonymizedAt) {
+        const actions = document.createElement('span');
+        actions.className = 'record-actions';
+        const anonymize = document.createElement('button');
+        anonymize.type = 'button';
+        anonymize.className = 'text-button danger-button';
+        anonymize.textContent = '탈퇴 개인정보 파기';
+        anonymize.addEventListener('click', async () => {
+          if (!window.confirm(`${member.name} 회원의 이름·로그인 ID·비밀번호를 복구할 수 없게 파기할까요? 회계·감사 관계는 익명 회원 ID로 보존됩니다.`)) return;
+          anonymize.disabled = true;
+          try {
+            await apiRequest(`/api/bolsso/members/${encodeURIComponent(member.id)}/anonymize`, { method: 'POST' });
+            await refreshAllData();
+          } catch {
+            anonymize.disabled = false;
+            anonymize.textContent = '파기 실패';
+          }
+        });
+        actions.append(anonymize);
+        row.append(actions);
+      }
       list.append(row);
     });
 }
@@ -852,6 +878,27 @@ function renderTerms(items) {
     info.append(title, document.createElement('small'));
     info.lastChild.textContent = `${name} · 1월 1일 ~ 12월 31일`;
     row.append(info);
+    if (isAdmin()) {
+      const actions = document.createElement('span');
+      actions.className = 'record-actions';
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'text-button danger-button';
+      remove.textContent = '잘못된 임기 삭제';
+      remove.addEventListener('click', async () => {
+        if (!window.confirm(`${term.year}년 ${roleLabel(term.office)} 임기를 삭제할까요?`)) return;
+        remove.disabled = true;
+        try {
+          await apiRequest(`/api/collections/officer_terms/records/${encodeURIComponent(term.id)}`, { method: 'DELETE' });
+          await refreshAllData();
+        } catch {
+          remove.disabled = false;
+          remove.textContent = '삭제 실패';
+        }
+      });
+      actions.append(remove);
+      row.append(actions);
+    }
     list.append(row);
   });
 }
@@ -1021,23 +1068,9 @@ async function approveSignupRequest(request, button) {
   button.disabled = true;
   notice.textContent = '';
   try {
-    await apiRequest('/api/collections/members/records', {
+    await apiRequest(`/api/bolsso/signup-requests/${encodeURIComponent(request.id)}/approve`, {
       method: 'POST',
-      body: JSON.stringify({
-        name: request.name,
-        loginId: request.loginId,
-        password: temporaryPassword,
-        passwordConfirm: temporaryPassword,
-        role: 'member',
-        isAdmin: false,
-        active: true,
-        mustChangePassword: true,
-        joinedAt: new Date().toISOString()
-      })
-    });
-    await apiRequest(`/api/collections/signup_requests/records/${encodeURIComponent(request.id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'approved' })
+      body: JSON.stringify({ password: temporaryPassword })
     });
     await refreshAllData();
     notice.textContent = `${request.name}님 승인 완료. 전달할 임시 비밀번호: ${temporaryPassword} (화면을 닫거나 새로고침하면 다시 볼 수 없습니다.)`;
@@ -1053,12 +1086,9 @@ async function rejectSignupRequest(request, button) {
   button.disabled = true;
   notice.textContent = '';
   try {
-    await apiRequest(`/api/collections/signup_requests/records/${encodeURIComponent(request.id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'rejected' })
-    });
+    await apiRequest(`/api/bolsso/signup-requests/${encodeURIComponent(request.id)}/reject`, { method: 'POST' });
     await refreshAllData();
-    notice.textContent = `${request.name}님의 가입 요청을 거절했습니다. 휴대폰번호는 삭제되었습니다.`;
+    notice.textContent = `${request.name}님의 가입 요청을 거절하고 신청 개인정보를 삭제했습니다.`;
   } catch {
     button.disabled = false;
     notice.textContent = '가입 요청을 처리하지 못했습니다.';
@@ -1124,6 +1154,20 @@ function renderOperationControls() {
     return `${period?.label || '기간'} · ${member?.name || '회원'} · ${payment.status || 'unpaid'}`;
   });
   setOptions($('#transactionSelect'), operationData.transactions.filter((item) => item.entryStatus === 'draft'), (item) => `${formatDate(item.transactedAt)} · ${item.category} · ${formatWon(item.amount)}`);
+  const draftSelect = $('#draftTransactionSelect');
+  const selectedDraft = draftSelect.value;
+  draftSelect.replaceChildren();
+  const newDraft = document.createElement('option');
+  newDraft.value = '';
+  newDraft.textContent = '새 초안';
+  draftSelect.append(newDraft);
+  operationData.transactions.filter((item) => item.entryStatus === 'draft').forEach((item) => {
+    const option = document.createElement('option');
+    option.value = item.id;
+    option.textContent = `${formatDate(item.transactedAt)} · ${item.category} · ${formatWon(item.amount)}`;
+    draftSelect.append(option);
+  });
+  if ([...draftSelect.options].some((option) => option.value === selectedDraft)) draftSelect.value = selectedDraft;
   renderMemberRecords(isAdmin() ? members : []);
   renderTerms(operationData.terms);
   renderRuleRevisions(operationData.rules);
@@ -1136,10 +1180,13 @@ function renderOperationControls() {
 
 async function loadOperations() {
   $('#adminPanel').hidden = !isAdmin();
-  $('#chairPanel').hidden = !canManageRules();
+  $('#chairPanel').hidden = !(canManageRules() || canManageEvents());
+  $('#ruleManagementGrid').hidden = !canManageRules();
+  $('#eventManagementGrid').hidden = !canManageEvents();
+  $('#chairPanelTitle').textContent = canManageRules() ? '회장 · 규약과 확정 장부' : '총무 · 모임과 여행';
   $('#treasurerPanel').hidden = !canManageFinance();
   $('#auditPanel').hidden = !(isAdmin() || canManageRules() || canManageFinance());
-  if (!isAdmin() && !canManageRules() && !canManageFinance()) return;
+  if (!isAdmin() && !canManageRules() && !canManageFinance() && !canManageEvents()) return;
 
   const requests = [
     ['directory', apiRequest(listPath('member_directory', { sort: '-joinedAt' }))],
@@ -1157,7 +1204,9 @@ async function loadOperations() {
   );
   if (canManageRules()) requests.push(
     ['chairLedger', apiRequest(listPath('chair_ledger', { sort: '-transactedAt' }))],
-    ['rules', apiRequest(listPath('rules', { sort: '-savedAt' }))],
+    ['rules', apiRequest(listPath('rules', { sort: '-savedAt' }))]
+  );
+  if (canManageEvents()) requests.push(
     ['events', apiRequest(listPath('events', { sort: '-scheduledAt' }))],
     ['eventAttendees', apiRequest(listPath('event_attendees'))]
   );
@@ -1383,13 +1432,32 @@ $('#termCreateForm').addEventListener('submit', async (event) => {
   const form = event.currentTarget;
   const data = new FormData(form);
   const year = Number(data.get('year'));
-  await submitJsonForm(form, '/api/collections/officer_terms/records', {
+  const office = String(data.get('office'));
+  const existing = operationData.terms.find((term) => term.year === year && term.office === office);
+  const body = {
     year,
-    office: data.get('office'),
+    office,
     member: data.get('member'),
     startsOn: `${year}-01-01 00:00:00.000Z`,
     endsOn: `${year}-12-31 23:59:59.000Z`
-  }, '해당 연도의 1월~12월 운영진 임기를 등록했습니다.');
+  };
+  if (!existing) {
+    await submitJsonForm(form, '/api/collections/officer_terms/records', body, '해당 연도의 1월~12월 운영진 임기를 등록했습니다.');
+    return;
+  }
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    await apiRequest(`/api/collections/officer_terms/records/${encodeURIComponent(existing.id)}`, {
+      method: 'PATCH', body: JSON.stringify(body)
+    });
+    fieldMessage(form, '기존 운영진 임기를 정정했습니다.', true);
+    await refreshAllData();
+  } catch {
+    fieldMessage(form, '운영진 임기를 정정하지 못했습니다.');
+  } finally {
+    button.disabled = false;
+  }
 });
 
 $('#eventCreateForm').addEventListener('submit', async (event) => {
@@ -1418,7 +1486,10 @@ $('#eventAttendanceForm').addEventListener('submit', async (event) => {
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
   try {
-    if (existing) {
+    if (status === 'remove') {
+      if (!existing) return fieldMessage(form, '명단에서 제거할 기존 참석자가 없습니다.');
+      await apiRequest(`/api/collections/event_attendees/records/${encodeURIComponent(existing.id)}`, { method: 'DELETE' });
+    } else if (existing) {
       await apiRequest(`/api/collections/event_attendees/records/${encodeURIComponent(existing.id)}`, {
         method: 'PATCH', body: JSON.stringify({ status })
       });
@@ -1427,7 +1498,7 @@ $('#eventAttendanceForm').addEventListener('submit', async (event) => {
         method: 'POST', body: JSON.stringify({ event: eventId, member: memberId, status })
       });
     }
-    fieldMessage(form, '참석자 명단을 저장했습니다.', true);
+    fieldMessage(form, status === 'remove' ? '참석자를 명단에서 제거했습니다.' : '참석자 명단을 저장했습니다.', true);
     await refreshAllData();
   } catch {
     fieldMessage(form, '참석자 명단을 저장하지 못했습니다.');
@@ -1440,6 +1511,10 @@ $('#eventRecordEventSelect').addEventListener('change', (event) => {
   const record = operationData.events.find((item) => item.id === event.target.value);
   if (!record) return;
   const form = $('#eventRecordForm');
+  form.elements.type.value = record.type;
+  form.elements.title.value = record.title || '';
+  form.elements.scheduledAt.value = String(record.scheduledAt || '').slice(0, 10);
+  form.elements.location.value = record.location || '';
   form.elements.status.value = record.status;
   form.elements.note.value = record.note || '';
 });
@@ -1455,9 +1530,16 @@ $('#eventRecordForm').addEventListener('submit', async (event) => {
   try {
     await apiRequest(`/api/collections/events/records/${encodeURIComponent(eventId)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status: String(data.get('status')), note: String(data.get('note')).trim() })
+      body: JSON.stringify({
+        type: String(data.get('type')),
+        title: String(data.get('title')).trim(),
+        scheduledAt: toPbDate(String(data.get('scheduledAt'))),
+        location: String(data.get('location')).trim(),
+        status: String(data.get('status')),
+        note: String(data.get('note')).trim()
+      })
     });
-    fieldMessage(form, '일정 기록을 저장했습니다.', true);
+    fieldMessage(form, '일정 내용과 기록을 정정했습니다.', true);
     await refreshAllData();
   } catch {
     fieldMessage(form, '일정 기록을 저장하지 못했습니다.');
@@ -1663,13 +1745,32 @@ $('#policyCreateForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const data = new FormData(form);
-  await submitJsonForm(form, '/api/collections/dues_policies/records', {
-    year: Number(data.get('year')),
+  const year = Number(data.get('year'));
+  const existing = operationData.policies.find((policy) => policy.year === year);
+  const body = {
+    year,
     monthlyAmount: Number(data.get('monthlyAmount')),
     annualAmount: Number(data.get('annualAmount')),
     dueDay: Number(data.get('dueDay')),
-    active: true
-  }, '연도 회비 정책을 저장했습니다.');
+    active: data.get('active') === 'on'
+  };
+  if (!existing) {
+    await submitJsonForm(form, '/api/collections/dues_policies/records', body, '연도 회비 정책을 저장했습니다.');
+    return;
+  }
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    await apiRequest(`/api/collections/dues_policies/records/${encodeURIComponent(existing.id)}`, {
+      method: 'PATCH', body: JSON.stringify(body)
+    });
+    fieldMessage(form, body.active ? '기존 회비 정책을 정정했습니다.' : '회비 정책 사용을 종료했습니다.', true);
+    await refreshAllData();
+  } catch {
+    fieldMessage(form, '회비 정책을 정정하지 못했습니다.');
+  } finally {
+    button.disabled = false;
+  }
 });
 
 $('#billingType').addEventListener('change', (event) => {
@@ -1689,16 +1790,34 @@ $('#periodCreateForm').addEventListener('submit', async (event) => {
   if (!policy || (billingType === 'monthly' && (month < 1 || month > 12))) return fieldMessage(form, '정책과 월을 확인해 주세요.');
   const amount = billingType === 'annual' ? policy.annualAmount : policy.monthlyAmount;
   const label = billingType === 'annual' ? `${policy.year}년 연납 회비` : `${policy.year}년 ${month}월 회비`;
-  await submitJsonForm(form, '/api/collections/dues_periods/records', {
+  const existing = operationData.periods.find((period) => period.year === policy.year && period.month === month && period.billingType === billingType);
+  const body = {
     year: policy.year,
     month,
     label,
     amount,
     dueDate: toPbDate(String(data.get('dueDate'))),
-    status: 'open',
+    status: String(data.get('status')),
     billingType,
     policy: policy.id
-  }, '회비 기간을 만들고 모든 활성 회원의 납부 행을 생성했습니다.');
+  };
+  if (!existing) {
+    await submitJsonForm(form, '/api/collections/dues_periods/records', body, '회비 기간을 만들고 모든 활성 회원의 납부 행을 생성했습니다.');
+    return;
+  }
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    await apiRequest(`/api/collections/dues_periods/records/${encodeURIComponent(existing.id)}`, {
+      method: 'PATCH', body: JSON.stringify(body)
+    });
+    fieldMessage(form, body.status === 'closed' ? '회비 기간을 마감했습니다.' : '회비 기간을 정정했습니다.', true);
+    await refreshAllData();
+  } catch {
+    fieldMessage(form, '회비 기간을 정정하지 못했습니다.');
+  } finally {
+    button.disabled = false;
+  }
 });
 
 $('#paymentUpdateForm').addEventListener('submit', async (event) => {
@@ -1724,10 +1843,30 @@ $('#paymentUpdateForm').addEventListener('submit', async (event) => {
   }
 });
 
+$('#draftTransactionSelect').addEventListener('change', (event) => {
+  const form = $('#transactionCreateForm');
+  const transaction = operationData.transactions.find((item) => item.id === event.target.value && item.entryStatus === 'draft');
+  if (!transaction) {
+    form.reset();
+    form.elements.transactionId.value = '';
+    renderAdminFinanceDelegationControls();
+    return;
+  }
+  form.elements.transactedAt.value = String(transaction.transactedAt || '').slice(0, 10);
+  form.elements.type.value = transaction.type;
+  form.elements.category.value = transaction.category || '';
+  form.elements.amount.value = transaction.amount || 0;
+  form.elements.balanceAfter.value = transaction.balanceAfter || 0;
+  form.elements.memo.value = transaction.memo || '';
+  form.elements.adminDelegationReason.value = transaction.adminDelegationReason || '';
+  form.elements.visibleToMembers.checked = transaction.visibleToMembers === true;
+});
+
 $('#transactionCreateForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const data = new FormData(form);
+  const transactionId = String(data.get('transactionId') || '');
   const delegationReason = String(data.get('adminDelegationReason') || '').trim();
   if (isAdminFinanceDelegate() && delegationReason.length < 5) return fieldMessage(form, '관리자 대행 사유를 5자 이상 입력해 주세요.');
   const button = form.querySelector('button[type="submit"]');
@@ -1745,12 +1884,35 @@ $('#transactionCreateForm').addEventListener('submit', async (event) => {
     payload.set('visibleToMembers', data.get('visibleToMembers') === 'on' ? 'true' : 'false');
     const evidence = data.get('evidence');
     if (evidence instanceof File && evidence.size) payload.set('evidence', evidence);
-    await apiRequest('/api/collections/transactions/records', { method: 'POST', body: payload });
+    await apiRequest(transactionId
+      ? `/api/collections/transactions/records/${encodeURIComponent(transactionId)}`
+      : '/api/collections/transactions/records', { method: transactionId ? 'PATCH' : 'POST', body: payload });
     form.reset();
-    fieldMessage(form, '장부 초안을 NAS에 저장했습니다. 확정 전에는 회원에게 표시되지 않습니다.', true);
+    fieldMessage(form, transactionId
+      ? '장부 초안을 정정했습니다.'
+      : '장부 초안을 NAS에 저장했습니다. 확정 전에는 회원에게 표시되지 않습니다.', true);
     await refreshAllData();
   } catch {
     fieldMessage(form, '장부 초안을 저장하지 못했습니다.');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$('#deleteDraftTransaction').addEventListener('click', async () => {
+  const form = $('#transactionCreateForm');
+  const transactionId = String(form.elements.transactionId.value || '');
+  if (!transactionId) return fieldMessage(form, '삭제할 초안을 선택해 주세요.');
+  if (!window.confirm('선택한 장부 초안을 삭제할까요? 확정 장부는 삭제할 수 없습니다.')) return;
+  const button = $('#deleteDraftTransaction');
+  button.disabled = true;
+  try {
+    await apiRequest(`/api/collections/transactions/records/${encodeURIComponent(transactionId)}`, { method: 'DELETE' });
+    form.reset();
+    fieldMessage(form, '장부 초안을 삭제했습니다.', true);
+    await refreshAllData();
+  } catch {
+    fieldMessage(form, '장부 초안을 삭제하지 못했습니다.');
   } finally {
     button.disabled = false;
   }

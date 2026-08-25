@@ -60,27 +60,28 @@ function stampRuleSavedAt(event) {
 onRecordCreateRequest(stampRuleSavedAt, "rules")
 onRecordUpdateRequest(stampRuleSavedAt, "rules")
 
-function normalizeSignupPhone(phone) {
-  const digits = String(phone || "").replace(/\D/g, "")
-  if (digits.length < 8 || digits.length > 15) {
-    throw new BadRequestError("휴대폰번호 형식을 확인해 주세요.")
-  }
-  return digits
-}
-
-function normalizeSignupLoginId(loginId) {
-  const normalized = String(loginId || "").trim().toLowerCase()
-  if (!/^[a-z0-9][a-z0-9._-]{3,39}$/.test(normalized)) {
-    throw new BadRequestError("아이디는 영문 소문자·숫자와 . _ - 만 사용할 수 있습니다.")
-  }
-  return normalized
-}
-
 onRecordCreateRequest(function (event) {
+  // PocketBase request hooks may run without top-level helper bindings.
+  // Keep signup-only normalization in the callback execution scope.
+  const normalizePhoneForSignup = function (value) {
+    const digits = String(value || "").replace(/\D/g, "")
+    if (digits.length < 8 || digits.length > 15) {
+      throw new BadRequestError("휴대폰번호 형식을 확인해 주세요.")
+    }
+    return digits
+  }
+  const normalizeLoginIdForSignup = function (value) {
+    const normalized = String(value || "").trim().toLowerCase()
+    if (!/^[a-z0-9][a-z0-9._-]{3,39}$/.test(normalized)) {
+      throw new BadRequestError("아이디는 영문 소문자·숫자와 . _ - 만 사용할 수 있습니다.")
+    }
+    return normalized
+  }
+
   const name = event.record.getString("name").trim()
   if (name.length < 2) throw new BadRequestError("이름을 2자 이상 입력해 주세요.")
-  const phone = normalizeSignupPhone(event.record.getString("phone"))
-  const loginId = normalizeSignupLoginId(event.record.getString("loginId"))
+  const phone = normalizePhoneForSignup(event.record.getString("phone"))
+  const loginId = normalizeLoginIdForSignup(event.record.getString("loginId"))
   const existingMember = event.app.findRecordsByFilter("members", "loginId = {:loginId}", "", 1, 0, { loginId })
   if (existingMember.length) throw new BadRequestError("가입 요청을 접수하지 못했습니다.")
 
@@ -109,29 +110,28 @@ onRecordUpdateRequest(function (event) {
   event.next()
 }, "signup_requests")
 
-const memberDataEncryptedPrefix = "enc:v1:"
-
-function memberDataEncryptionKey() {
-  const rootKey = $os.getenv("PB_ENCRYPTION_KEY")
-  if (!/^[a-f0-9]{32}$/i.test(rootKey)) {
-    throw new InternalServerError("회원정보 암호화 키가 준비되지 않았습니다.")
-  }
-  return $security.sha256("bolsso-member-data-v1:" + rootKey).slice(0, 32)
-}
-
-function encryptMemberData(value) {
-  const text = String(value || "")
-  if (!text || text.startsWith(memberDataEncryptedPrefix)) return text
-  return memberDataEncryptedPrefix + $security.encrypt(text, memberDataEncryptionKey())
-}
-
 function encryptMemberRecord(event) {
+  // Keep encryption helpers in the request callback scope for PocketBase goja.
+  const encryptedPrefixForRequest = "enc:v1:"
+  const encryptionKeyForRequest = function () {
+    const rootKey = $os.getenv("PB_ENCRYPTION_KEY")
+    if (!/^[a-f0-9]{32}$/i.test(rootKey)) {
+      throw new InternalServerError("회원정보 암호화 키가 준비되지 않았습니다.")
+    }
+    return $security.sha256("bolsso-member-data-v1:" + rootKey).slice(0, 32)
+  }
+  const encryptForRequest = function (value) {
+    const text = String(value || "")
+    if (!text || text.startsWith(encryptedPrefixForRequest)) return text
+    return encryptedPrefixForRequest + $security.encrypt(text, encryptionKeyForRequest())
+  }
+
   const collection = event.record.collection().name
   if (collection === "members") {
-    event.record.set("name", encryptMemberData(event.record.getString("name")))
+    event.record.set("name", encryptForRequest(event.record.getString("name")))
   } else if (collection === "signup_requests") {
-    event.record.set("name", encryptMemberData(event.record.getString("name")))
-    event.record.set("phone", encryptMemberData(event.record.getString("phone")))
+    event.record.set("name", encryptForRequest(event.record.getString("name")))
+    event.record.set("phone", encryptForRequest(event.record.getString("phone")))
   }
   event.next()
 }

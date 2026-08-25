@@ -3,14 +3,14 @@
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:'Gowun Dodum',sans-serif;font-size:14px}
 .shell{display:flex;min-height:100vh}
-.sidebar{width:242px;border-right:1px solid var(--line);padding:31px 20px 22px;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;background:#fcfbf7}
-.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-size:22px;font-weight:bold;margin:0 12px 48px}
+.sidebar{width:242px;height:100vh;height:100dvh;max-height:100dvh;border-right:1px solid var(--line);padding:31px 20px calc(22px + env(safe-area-inset-bottom));display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;background:#fcfbf7;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-size:22px;font-weight:bold;margin:0 12px 48px;flex-shrink:0}
 .brand-mark{display:grid;place-items:center;width:29px;height:29px;background:var(--ink);color:var(--lime);border-radius:50%;font-family:'Playfair Display',serif;font-size:17px}
-nav{display:grid;gap:7px}
+nav{display:grid;gap:7px;flex-shrink:0}
 .nav-link{padding:12px 13px;border-radius:7px;color:#68726b;text-decoration:none;font-size:15px}
 .nav-link span{display:inline-block;width:24px;font-size:18px}
 .nav-link.active{background:#e9f4de;color:#26342e;font-weight:bold}
-.sidebar-bottom{margin-top:auto}
+.sidebar-bottom{margin-top:auto;flex-shrink:0}
 .workspace{border-top:1px solid var(--line);padding:21px 8px 17px;display:flex;align-items:center;gap:9px}
 .workspace span:not(.avatar){display:grid;gap:2px;flex:1}
 .workspace strong{font-size:12px}

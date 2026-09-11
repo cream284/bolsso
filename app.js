@@ -848,6 +848,7 @@ function sortRulesByLastSaved(items) {
 }
 
 function setOptions(select, items, label) {
+  const previous = select.value;
   select.replaceChildren();
   if (!items.length) {
     const option = document.createElement('option');
@@ -862,6 +863,16 @@ function setOptions(select, items, label) {
     option.textContent = label(item);
     select.append(option);
   });
+  if (previous) {
+    if (items.some((item) => item.id === previous)) select.value = previous;
+    else {
+      const missing = document.createElement('option');
+      missing.value = '';
+      missing.textContent = '다시 선택해 주세요';
+      select.prepend(missing);
+      select.value = '';
+    }
+  }
 }
 
 function renderTerms(items) {
@@ -1114,6 +1125,8 @@ function renderSignupRequests(items) {
     approve.type = 'button';
     approve.className = 'text-button';
     approve.textContent = '승인';
+    approve.disabled = request.personalDataError === true;
+    if (request.personalDataError) detail.textContent = '가입 정보 확인이 필요합니다. 거절 후 다시 요청해 주세요.';
     approve.addEventListener('click', () => approveSignupRequest(request, approve));
     const reject = document.createElement('button');
     reject.type = 'button';
@@ -1135,7 +1148,10 @@ function renderOperationControls() {
   setOptions($('#eventAttendanceEventSelect'), operationData.events, (event) => `${formatDate(event.scheduledAt)} · ${eventTypeLabel(event.type)} · ${event.title}`);
   setOptions($('#eventAttendanceMemberSelect'), activeMembers, (member) => member.name);
   setOptions($('#eventRecordEventSelect'), operationData.events, (event) => `${formatDate(event.scheduledAt)} · ${eventTypeLabel(event.type)} · ${event.title}`);
+  hydrateMemberEditor();
+  hydrateEventEditor();
   const revisionSelect = $('#previousRevisionSelect');
+  const previousRevision = revisionSelect.value;
   revisionSelect.replaceChildren();
   const firstOption = document.createElement('option');
   firstOption.value = '';
@@ -1147,6 +1163,7 @@ function renderOperationControls() {
     option.textContent = `${rule.version || '버전 없음'} · ${rule.title}`;
     revisionSelect.append(option);
   });
+  if (previousRevision && operationData.rules.some((rule) => rule.id === previousRevision)) revisionSelect.value = previousRevision;
   setOptions($('#policySelect'), operationData.policies, (policy) => `${policy.year}년 정책`);
   setOptions($('#paymentSelect'), operationData.payments, (payment) => {
     const member = members.find((item) => item.id === payment.member);
@@ -1167,7 +1184,13 @@ function renderOperationControls() {
     option.textContent = `${formatDate(item.transactedAt)} · ${item.category} · ${formatWon(item.amount)}`;
     draftSelect.append(option);
   });
-  if ([...draftSelect.options].some((option) => option.value === selectedDraft)) draftSelect.value = selectedDraft;
+  if (selectedDraft && ![...draftSelect.options].some((option) => option.value === selectedDraft)) {
+    const missingDraft = document.createElement('option');
+    missingDraft.value = selectedDraft;
+    missingDraft.textContent = '사용할 수 없는 초안 · 다시 선택해 주세요';
+    draftSelect.append(missingDraft);
+  }
+  draftSelect.value = selectedDraft;
   renderMemberRecords(isAdmin() ? members : []);
   renderTerms(operationData.terms);
   renderRuleRevisions(operationData.rules);
@@ -1353,14 +1376,23 @@ passwordChangeForm.addEventListener('submit', async (event) => {
   }
 });
 
-$('#adminMemberSelect').addEventListener('change', (event) => {
-  const member = operationData.members.find((item) => item.id === event.target.value);
-  if (!member) return;
+function hydrateMemberEditor(force = false) {
   const form = $('#memberUpdateForm');
+  const id = $('#adminMemberSelect').value;
+  if (!force && form.dataset.recordId === id) return;
+  const member = operationData.members.find((item) => item.id === id);
+  form.dataset.recordId = member ? id : '';
+  if (!member) {
+    form.elements.role.value = 'member';
+    form.elements.active.checked = false;
+    form.elements.isAdmin.checked = false;
+    return;
+  }
   form.elements.role.value = member.role === 'admin' || member.role === 'operator' ? 'member' : member.role;
   form.elements.active.checked = member.active === true;
   form.elements.isAdmin.checked = member.isAdmin === true || member.role === 'admin';
-});
+}
+$('#adminMemberSelect').addEventListener('change', () => hydrateMemberEditor(true));
 
 $('#memberCreateForm').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -1386,7 +1418,7 @@ $('#memberUpdateForm').addEventListener('submit', async (event) => {
   const form = event.currentTarget;
   const data = new FormData(form);
   const memberId = String(data.get('memberId'));
-  if (!memberId) return fieldMessage(form, '회원을 선택해 주세요.');
+  if (!memberId || memberId !== form.dataset.recordId) return fieldMessage(form, '회원을 다시 선택해 주세요.');
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
   try {
@@ -1507,24 +1539,31 @@ $('#eventAttendanceForm').addEventListener('submit', async (event) => {
   }
 });
 
-$('#eventRecordEventSelect').addEventListener('change', (event) => {
-  const record = operationData.events.find((item) => item.id === event.target.value);
-  if (!record) return;
+function hydrateEventEditor(force = false) {
   const form = $('#eventRecordForm');
+  const id = $('#eventRecordEventSelect').value;
+  if (!force && form.dataset.recordId === id) return;
+  const record = operationData.events.find((item) => item.id === id);
+  form.dataset.recordId = record ? id : '';
+  if (!record) {
+    for (const key of ['type', 'title', 'scheduledAt', 'location', 'status', 'note']) form.elements[key].value = '';
+    return;
+  }
   form.elements.type.value = record.type;
   form.elements.title.value = record.title || '';
   form.elements.scheduledAt.value = String(record.scheduledAt || '').slice(0, 10);
   form.elements.location.value = record.location || '';
   form.elements.status.value = record.status;
   form.elements.note.value = record.note || '';
-});
+}
+$('#eventRecordEventSelect').addEventListener('change', () => hydrateEventEditor(true));
 
 $('#eventRecordForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const data = new FormData(form);
   const eventId = String(data.get('eventId'));
-  if (!eventId) return fieldMessage(form, '기록할 일정을 선택해 주세요.');
+  if (!eventId || eventId !== form.dataset.recordId) return fieldMessage(form, '기록할 일정을 다시 선택해 주세요.');
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
   try {
@@ -1710,6 +1749,9 @@ $('#ruleManageForm').addEventListener('submit', async (event) => {
   }
   const data = new FormData(form);
   const markdown = String(data.get('contentMarkdown')).trim();
+  if (ruleRevisionDraft && String(data.get('previousRevision') || '') !== ruleRevisionDraft.id) {
+    return fieldMessage(form, '기준 개정본이 변경되거나 사라졌습니다. 다시 선택해 주세요.');
+  }
   if (ruleRevisionDraft && String(data.get('previousRevision') || '') === ruleRevisionDraft.id && markdown === ruleRevisionDraft.markdown.trim()) {
     return fieldMessage(form, '원문을 수정한 뒤 새 개정본을 저장해 주세요.');
   }
@@ -1867,6 +1909,9 @@ $('#transactionCreateForm').addEventListener('submit', async (event) => {
   const form = event.currentTarget;
   const data = new FormData(form);
   const transactionId = String(data.get('transactionId') || '');
+  if (transactionId && !operationData.transactions.some((item) => item.id === transactionId && item.entryStatus === 'draft')) {
+    return fieldMessage(form, '초안이 삭제되거나 확정되었습니다. 편집 대상을 다시 선택해 주세요.');
+  }
   const delegationReason = String(data.get('adminDelegationReason') || '').trim();
   if (isAdminFinanceDelegate() && delegationReason.length < 5) return fieldMessage(form, '관리자 대행 사유를 5자 이상 입력해 주세요.');
   const button = form.querySelector('button[type="submit"]');

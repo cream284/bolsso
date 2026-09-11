@@ -33,16 +33,22 @@ checked every two minutes while DSM remains the owner of the schedule.
 The deployer compares the GitHub commit SHA, downloads a release only when it
 changed, runs a NAS-only private test suite against disposable synthetic data,
 and promotes the release only when those tests pass. It then recreates the
-containers so PocketBase applies every new migration, checks `/api/health`, and
-restores the previous code release if the health check fails. When a private
-test runner is placed beside the installer, it is installed as a required
-deployment gate but is never committed to this public repository. Database
-migrations should therefore be additive and
-backward-compatible; code rollback does not restore a database snapshot.
+containers so PocketBase applies every new migration, checks API and converter
+health and anonymous access restrictions. Before changing a running release it
+stops services and saves a private recovery snapshot of data, files, configuration
+and images. Internal failure restores that snapshot; interrupted recovery blocks
+new deployments until resolved. Writes are blocked during verification.
+External checks also run against the frontend's API origin;
+a failed external check is retried on the next schedule without redeploying.
+The NAS-only test runner is required. Install the complete private test bundle;
+none of its fixtures belong in this public repository. Keep migrations additive
+where possible. Recovery snapshots are not automatically deleted: review retention
+privately. Insufficient free space prevents deployment rather than removing backups.
 
-Running the installer again updates only these fixed deployment files and
-forces one safe container recreation. Existing NAS secrets and database files
-are preserved.
+Run the installer once to adopt this updater. Subsequent successful deployments
+syntax-check and atomically replace the installed deployment scripts. Optional
+authenticated, read-only production probes can remain in the NAS private-test
+directory. A successful public health check alone does not verify member login.
 
 ## Local-only ports
 

@@ -1,4 +1,11 @@
 :8080 {
+  route {
+    # During verification allow read probes, but do not accept new business writes.
+    @maintenance {
+        expression `"{$BOLSSO_DEPLOY_MAINTENANCE:0}" == "1"`
+        not method GET HEAD OPTIONS
+    }
+    respond @maintenance "Deployment maintenance" 503
     @private_admin path /_/ /_/* /api/collections/_superusers/*
     respond @private_admin 404
 
@@ -9,12 +16,16 @@
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
 
-    @rule_converter path /api/bolsso/rules/convert
+    @rule_converter path /api/bolsso/rules/convert /api/bolsso/rules/converter-health
     handle @rule_converter {
+        request_body {
+            max_size 11MB
+        }
         reverse_proxy rule-converter:8080
     }
 
     handle {
         reverse_proxy pocketbase:8080
     }
+  }
 }

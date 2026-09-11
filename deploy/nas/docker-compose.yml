@@ -48,6 +48,8 @@ services:
     image: caddy:2.11.4-alpine
     container_name: bolsso-api
     restart: unless-stopped
+    environment:
+      BOLSSO_DEPLOY_MAINTENANCE: "${BOLSSO_DEPLOY_MAINTENANCE:-0}"
     depends_on:
       - pocketbase
     ports:

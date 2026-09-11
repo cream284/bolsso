@@ -79,7 +79,9 @@ onRecordCreateRequest(function (event) {
   }
 
   const name = event.record.getString("name").trim()
-  if (name.length < 2) throw new BadRequestError("이름을 2자 이상 입력해 주세요.")
+  if (name.length < 2 || name.length > 60 || /^enc:/i.test(name) || /[\u0000-\u001f\u007f]/.test(name)) {
+    throw new BadRequestError("이름은 2~60자의 일반 텍스트로 입력해 주세요.")
+  }
   const phone = normalizePhoneForSignup(event.record.getString("phone"))
   const loginId = normalizeLoginIdForSignup(event.record.getString("loginId"))
   const existingMember = event.app.findRecordsByFilter("members", "loginId = {:loginId}", "", 1, 0, { loginId })
@@ -111,27 +113,17 @@ onRecordUpdateRequest(function (event) {
 }, "signup_requests")
 
 function encryptMemberRecord(event) {
-  // Keep encryption helpers in the request callback scope for PocketBase goja.
-  const encryptedPrefixForRequest = "enc:v1:"
-  const encryptionKeyForRequest = function () {
-    const rootKey = $os.getenv("PB_ENCRYPTION_KEY")
-    if (!/^[a-f0-9]{32}$/i.test(rootKey)) {
-      throw new InternalServerError("회원정보 암호화 키가 준비되지 않았습니다.")
-    }
-    return $security.sha256("bolsso-member-data-v1:" + rootKey).slice(0, 32)
-  }
-  const encryptForRequest = function (value) {
-    const text = String(value || "")
-    if (!text || text.startsWith(encryptedPrefixForRequest)) return text
-    return encryptedPrefixForRequest + $security.encrypt(text, encryptionKeyForRequest())
-  }
-
+  const personal = require(__hooks + "/personal-data.js")
+  const info = event.requestInfo()
+  const body = info.body || {}
   const collection = event.record.collection().name
-  if (collection === "members") {
-    event.record.set("name", encryptForRequest(event.record.getString("name")))
-  } else if (collection === "signup_requests") {
-    event.record.set("name", encryptForRequest(event.record.getString("name")))
-    event.record.set("phone", encryptForRequest(event.record.getString("phone")))
+  // An external value is plaintext, never a pre-trusted stored ciphertext.
+  // An omitted field on PATCH remains unchanged, avoiding double encryption.
+  if (info.method === "POST" || Object.prototype.hasOwnProperty.call(body, "name")) {
+    event.record.set("name", personal.encrypt(personal.validateName(event.record.getString("name"))))
+  }
+  if (collection === "signup_requests" && info.method === "POST") {
+    event.record.set("phone", personal.encrypt(event.record.getString("phone")))
   }
   event.next()
 }
@@ -141,6 +133,12 @@ onRecordUpdateRequest(encryptMemberRecord, "members", "signup_requests")
 
 onRecordUpdateRequest(function (event) {
   const original = event.record.original()
+  const wasAdmin = original.getBool("active") && (original.getBool("isAdmin") || original.getString("role") === "admin")
+  const staysAdmin = event.record.getBool("active") && (event.record.getBool("isAdmin") || event.record.getString("role") === "admin")
+  if (wasAdmin && !staysAdmin) {
+    const others = event.app.findRecordsByFilter("members", "id != {:id} && active = true && (isAdmin = true || role = 'admin')", "", 1, 0, { id: event.record.id })
+    if (!others.length) throw new BadRequestError("마지막 활성 관리자는 권한 해제하거나 비활성화할 수 없습니다. 다른 관리자를 먼저 지정해 주세요.")
+  }
   if (original.getBool("active") && !event.record.getBool("active")) {
     event.record.set("deactivatedAt", new Date().toISOString())
   } else if (!original.getBool("active") && event.record.getBool("active")) {
@@ -171,13 +169,15 @@ routerAdd("POST", "/api/bolsso/signup-requests/{id}/approve", function (event) {
     const duplicate = txApp.findRecordsByFilter("members", "loginId = {:loginId}", "", 1, 0, { loginId })
     if (duplicate.length) throw new BadRequestError("이미 사용 중인 로그인 ID입니다.")
 
-    let storedName = request.getString("name")
-    if (storedName && !storedName.startsWith("enc:v1:")) {
-      const rootKey = $os.getenv("PB_ENCRYPTION_KEY")
-      if (!/^[a-f0-9]{32}$/i.test(rootKey)) throw new InternalServerError("회원정보 암호화 키가 준비되지 않았습니다.")
-      const key = $security.sha256("bolsso-member-data-v1:" + rootKey).slice(0, 32)
-      storedName = "enc:v1:" + $security.encrypt(storedName, key)
+    const personal = require(__hooks + "/personal-data.js")
+    let plainName
+    try {
+      plainName = personal.validateName(personal.decrypt(request.getString("name")))
+      if (!/^[0-9]{8,15}$/.test(personal.decrypt(request.getString("phone")))) throw new Error("Invalid stored phone")
+    } catch (_) {
+      throw new BadRequestError("가입 요청 정보를 확인할 수 없습니다. 해당 요청을 거절한 뒤 다시 신청받아 주세요.")
     }
+    const storedName = personal.encrypt(plainName)
 
     const members = txApp.findCollectionByNameOrId("members")
     const member = new Record(members)
@@ -313,7 +313,15 @@ onRecordEnrich(function (event) {
       throw new InternalServerError("회원정보 암호화 키가 준비되지 않았습니다.")
     }
     const key = $security.sha256("bolsso-member-data-v1:" + rootKey).slice(0, 32)
-    return String($security.decrypt(text.slice("enc:v1:".length), key))
+    try {
+      return String($security.decrypt(text.slice("enc:v1:".length), key))
+    } catch (_) {
+      // A damaged historical value must not hide every other record in a list.
+      // This is response-only data; the stored value remains available for recovery.
+      event.record.withCustomData(true)
+      event.record.set("personalDataError", true)
+      return "정보 확인 필요"
+    }
   }
   const canReadForEnrich = function (auth) {
     return auth && auth.collection().name === "members" && auth.getBool("active") && !auth.getBool("mustChangePassword")
@@ -346,41 +354,12 @@ onRecordEnrich(function (event) {
   event.next()
 }, "members", "member_directory", "member_dues_status", "signup_requests")
 
-function unpublishOlderRuleRevisions(event) {
-  event.next()
-  if (!event.record.getBool("published")) return
-  const olderPublished = event.app.findRecordsByFilter(
-    "rules",
-    "published = true && id != {:id}",
-    "",
-    0,
-    0,
-    { id: event.record.id }
-  )
-  for (const record of olderPublished) {
-    record.set("published", false)
-    event.app.save(record)
-  }
-}
-
-onRecordAfterCreateSuccess(unpublishOlderRuleRevisions, "rules")
-onRecordAfterUpdateSuccess(unpublishOlderRuleRevisions, "rules")
-
-function isAdminFinanceDelegate(actor) {
-  return actor && (actor.getBool("isAdmin") || actor.getString("role") === "admin") && actor.getString("role") !== "treasurer"
-}
-
-function requireAdminFinanceDelegation(event) {
-  if (!isAdminFinanceDelegate(event.auth)) return
-  const reason = event.record.getString("adminDelegationReason").trim()
-  if (reason.length < 5) throw new BadRequestError("관리자 재정 대행 사유를 5자 이상 입력해 주세요.")
-  event.record.set("adminDelegated", true)
-  event.record.set("adminDelegationReason", reason)
-}
+// Published-rule switching is atomic in the database (see its migration).
 
 onRecordCreateRequest(function (event) {
-  requireAdminFinanceDelegation(event)
-  if (!isAdminFinanceDelegate(event.auth)) {
+  const finance = require(__hooks + "/finance.js")
+  finance.requireDelegation(event)
+  if (!finance.isDelegate(event.auth)) {
     event.record.set("adminDelegated", false)
     event.record.set("adminDelegationReason", "")
   }
@@ -391,8 +370,9 @@ onRecordUpdateRequest(function (event) {
   if (event.record.original().getString("entryStatus") === "confirmed") {
     throw new BadRequestError("확정 장부는 수정할 수 없습니다. 정정 거래를 새로 등록해 주세요.")
   }
-  requireAdminFinanceDelegation(event)
-  if (!isAdminFinanceDelegate(event.auth)) {
+  const finance = require(__hooks + "/finance.js")
+  finance.requireDelegation(event)
+  if (!finance.isDelegate(event.auth)) {
     event.record.set("adminDelegated", event.record.original().getBool("adminDelegated"))
     event.record.set("adminDelegationReason", event.record.original().getString("adminDelegationReason"))
   }

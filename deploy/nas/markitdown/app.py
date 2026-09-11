@@ -1,11 +1,14 @@
+import asyncio
 import os
+import signal
+import sys
 import tempfile
 from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from markitdown import MarkItDown
+from starlette.responses import JSONResponse
 
 
 MAX_SOURCE_BYTES = 10 * 1024 * 1024
@@ -14,6 +17,25 @@ POCKETBASE_URL = os.environ.get("POCKETBASE_URL", "http://pocketbase:8080").rstr
 ALLOWED_SUFFIXES = {".pdf", ".docx", ".pptx", ".xlsx", ".xls", ".md", ".markdown", ".txt", ".html", ".htm", ".csv"}
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+
+class ConversionAdmission:
+    """Reject extra uploads before multipart parsing consumes temporary space."""
+    def __init__(self, app):
+        self.app = app
+        self.slot = asyncio.Lock()
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("method") != "POST" or scope.get("path") != "/api/bolsso/rules/convert":
+            return await self.app(scope, receive, send)
+        if self.slot.locked():
+            response = JSONResponse({"detail": "다른 문서를 변환 중입니다. 잠시 후 다시 시도해 주세요."}, status_code=429)
+            return await response(scope, receive, send)
+        async with self.slot:
+            return await self.app(scope, receive, send)
+
+
+app.add_middleware(ConversionAdmission)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://cream284.github.io", "http://localhost:8000", "http://127.0.0.1:8000"],
@@ -21,7 +43,38 @@ app.add_middleware(
     allow_methods=["POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
-converter = MarkItDown(enable_plugins=False)
+CONVERSION_TIMEOUT_SECONDS = 45
+conversion_slot = asyncio.Lock()
+
+
+@app.get("/api/bolsso/rules/converter-health")
+async def converter_health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+async def run_conversion(source_path: str, output_path: str) -> str:
+    process = await asyncio.create_subprocess_exec(
+        sys.executable, str(Path(__file__).with_name("worker.py")), source_path, output_path,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    try:
+        await asyncio.wait_for(process.wait(), timeout=CONVERSION_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="문서 변환 시간이 초과되었습니다. 문서를 나누어 다시 시도해 주세요.")
+    finally:
+        # Terminate descendants too, including any spawned document processors.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        await process.wait()
+    if process.returncode != 0:
+        raise HTTPException(status_code=422, detail="파일을 Markdown으로 변환하지 못했습니다.")
+    output = Path(output_path)
+    if output.stat().st_size > MAX_MARKDOWN_CHARS * 4:
+        raise HTTPException(status_code=422, detail="변환 결과가 너무 깁니다.")
+    return output.read_text(encoding="utf-8").strip()
 
 
 async def require_rule_manager(authorization: str | None) -> None:
@@ -56,25 +109,23 @@ async def convert_rule_source(
     suffix = Path(source_name).suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
         raise HTTPException(status_code=415, detail="지원하지 않는 파일 형식입니다.")
-
-    source = await file.read(MAX_SOURCE_BYTES + 1)
-    if not source:
-        raise HTTPException(status_code=422, detail="빈 파일은 변환할 수 없습니다.")
-    if len(source) > MAX_SOURCE_BYTES:
-        raise HTTPException(status_code=413, detail="원본 파일은 10MB 이하여야 합니다.")
-
-    temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(prefix="rule-", suffix=suffix, dir="/tmp", delete=False) as temp:
-            temp.write(source)
-            temp_path = temp.name
-        result = converter.convert_local(temp_path)
-        markdown = str(getattr(result, "text_content", "") or getattr(result, "markdown", "")).strip()
-    except Exception:
-        raise HTTPException(status_code=422, detail="파일을 Markdown으로 변환하지 못했습니다.")
-    finally:
-        if temp_path:
-            Path(temp_path).unlink(missing_ok=True)
+    if conversion_slot.locked():
+        raise HTTPException(status_code=429, detail="다른 문서를 변환 중입니다. 잠시 후 다시 시도해 주세요.")
+    async with conversion_slot:
+        source = await file.read(MAX_SOURCE_BYTES + 1)
+        if not source:
+            raise HTTPException(status_code=422, detail="빈 파일은 변환할 수 없습니다.")
+        if len(source) > MAX_SOURCE_BYTES:
+            raise HTTPException(status_code=413, detail="원본 파일은 10MB 이하여야 합니다.")
+        try:
+            with tempfile.TemporaryDirectory(prefix="rule-", dir="/tmp") as work:
+                source_path = Path(work) / ("source" + suffix)
+                source_path.write_bytes(source)
+                markdown = await run_conversion(str(source_path), str(Path(work) / "output.md"))
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=422, detail="파일을 Markdown으로 변환하지 못했습니다.")
 
     if not markdown:
         raise HTTPException(status_code=422, detail="추출할 텍스트가 없습니다. 스캔 문서는 내용을 직접 입력해 주세요.")

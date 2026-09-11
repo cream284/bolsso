@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && useradd --uid 1000 --no-create-home --shell /usr/sbin/nologin converter
-COPY app.py .
+COPY app.py worker.py ./
 USER converter
 
 EXPOSE 8080

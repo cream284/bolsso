@@ -17,21 +17,40 @@ if ! /bin/sh -n "$SCRIPT_DIR/pull-deploy.sh" || ! /bin/sh -n "$SCRIPT_DIR/pull-d
   printf '%s\n' "The NAS deployment scripts have invalid shell syntax." >&2
   exit 1
 fi
+/bin/sh -n "$SCRIPT_DIR/verify-deployment.sh"
+/bin/sh -n "$SCRIPT_DIR/deployment-recovery.sh"
+for command in sha256sum tar du df awk; do
+  command -v "$command" >/dev/null || { printf 'Required tool missing: %s\n' "$command" >&2; exit 1; }
+done
 if [ -f "$SCRIPT_DIR/private-test-runner.sh" ] && ! /bin/sh -n "$SCRIPT_DIR/private-test-runner.sh"; then
   printf '%s\n' "The private NAS test runner has invalid shell syntax." >&2
   exit 1
+fi
+if [ -f "$SCRIPT_DIR/private-test-runner.sh" ]; then
+  for check in converter-checks.py deployment-checks.py editor-checks.js; do
+    if [ ! -f "$SCRIPT_DIR/$check" ]; then
+      printf 'Missing private test dependency: %s\n' "$check" >&2
+      exit 1
+    fi
+  done
 fi
 
 umask 077
 mkdir -p "$ROOT/runtime" "$ROOT/bin" "$ROOT/private-tests" "$ROOT/data/pb_data" "$ROOT/secrets" "$ROOT/state" "$ROOT/logs" "$ROOT/releases"
 
-install -o root -g root -m 0644 "$SCRIPT_DIR/Dockerfile" "$ROOT/runtime/Dockerfile"
-install -o root -g root -m 0644 "$SCRIPT_DIR/Caddyfile" "$ROOT/runtime/Caddyfile"
-install -o root -g root -m 0644 "$SCRIPT_DIR/docker-compose.yml" "$ROOT/runtime/docker-compose.yml"
+# Existing runtime configuration belongs to the recovery snapshot, not the installer.
+for file in Dockerfile Caddyfile docker-compose.yml; do
+  if [ ! -f "$ROOT/runtime/$file" ]; then install -o root -g root -m 0644 "$SCRIPT_DIR/$file" "$ROOT/runtime/$file"; fi
+done
 install -o root -g root -m 0755 "$SCRIPT_DIR/pull-deploy.sh" "$ROOT/bin/pull-deploy.sh"
 install -o root -g root -m 0755 "$SCRIPT_DIR/pull-deploy-every-2min.sh" "$ROOT/bin/pull-deploy-every-2min.sh"
+install -o root -g root -m 0755 "$SCRIPT_DIR/verify-deployment.sh" "$ROOT/bin/verify-deployment.sh"
+install -o root -g root -m 0755 "$SCRIPT_DIR/deployment-recovery.sh" "$ROOT/bin/deployment-recovery.sh"
 if [ -f "$SCRIPT_DIR/private-test-runner.sh" ]; then
   install -o root -g root -m 0700 "$SCRIPT_DIR/private-test-runner.sh" "$ROOT/private-tests/run.sh"
+  install -o root -g root -m 0600 "$SCRIPT_DIR/converter-checks.py" "$ROOT/private-tests/converter-checks.py"
+  install -o root -g root -m 0600 "$SCRIPT_DIR/deployment-checks.py" "$ROOT/private-tests/deployment-checks.py"
+  install -o root -g root -m 0600 "$SCRIPT_DIR/editor-checks.js" "$ROOT/private-tests/editor-checks.js"
   touch "$ROOT/state/private-tests.required"
 fi
 

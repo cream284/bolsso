@@ -5,6 +5,9 @@ PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 export PATH
 
 ROOT=/volume1/docker/bolsso
+if [ -f "$ROOT/state/manual-deploy.pause" ]; then
+  exit 0
+fi
 minute="$(date '+%M')"
 
 case "$minute" in

@@ -9,6 +9,7 @@ REPOSITORY=cream284/bolsso
 BRANCH=main
 COMPOSE_FILE="$ROOT/runtime/docker-compose.yml"
 STATE_FILE="$ROOT/state/deployed.sha"
+VERIFIED_FILE="$ROOT/state/verified.sha"
 LOCK_FILE="$ROOT/state/deploy.lock"
 LOG_FILE="$ROOT/logs/deploy.log"
 DOCKER_COMPOSE=/usr/local/bin/docker-compose
@@ -30,6 +31,34 @@ sync_runtime_files() {
   install -o root -g root -m 0644 "$source_dir/docker-compose.yml" "$ROOT/runtime/docker-compose.yml"
 }
 
+sync_deploy_scripts() {
+  source_dir="$1/deploy/nas"
+  for script in pull-deploy.sh pull-deploy-every-2min.sh verify-deployment.sh deployment-recovery.sh; do
+    /bin/sh -n "$source_dir/$script" || return 1
+  done
+  # Replacing via rename preserves the running shell's old file descriptor.
+  for script in deployment-recovery.sh verify-deployment.sh pull-deploy-every-2min.sh pull-deploy.sh; do
+    install -o root -g root -m 0755 "$source_dir/$script" "$ROOT/bin/.$script.next" || return 1
+    mv -f "$ROOT/bin/.$script.next" "$ROOT/bin/$script" || return 1
+  done
+}
+
+verify_public_release() {
+  release_dir="$1"
+  public_origin="$(sed -n "s/^const API_BASE = '\\(https:\/\/[^']*\\)';/\\1/p" "$release_dir/app.js")"
+  if [ -z "$public_origin" ]; then
+    log "ERROR: public API origin is missing"
+    return 1
+  fi
+  /bin/sh "$release_dir/deploy/nas/verify-deployment.sh" "$public_origin" || return 1
+  # Optional NAS-only authenticated read probes; never shipped in public code.
+  if [ -x "$ROOT/private-tests/verify-production.sh" ]; then
+    "$ROOT/private-tests/verify-production.sh" "$public_origin" || return 1
+  else
+    log "NOTE: authenticated production read probe is not configured"
+  fi
+}
+
 if [ "$(id -u)" -ne 0 ]; then
   log "ERROR: this script must run as root from DSM Task Scheduler"
   exit 1
@@ -44,6 +73,16 @@ fi
 if [ ! -x "$DOCKER_COMPOSE" ]; then
   log "ERROR: docker-compose was not found at $DOCKER_COMPOSE"
   exit 1
+fi
+
+. "$ROOT/bin/deployment-recovery.sh"
+# Finish an interrupted recovery before contacting the registry or fetching code.
+recover_deployment || exit 1
+if [ -f "$ROOT/state/deploy.opening" ]; then
+  rm -f "$ROOT/data/pb_data/.deployment-maintenance"
+  export BOLSSO_DEPLOY_MAINTENANCE=0
+  "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --no-build api
+  rm -f "$ROOT/state/deploy.opening"
 fi
 
 API_URL="https://api.github.com/repos/$REPOSITORY/commits/$BRANCH"
@@ -62,12 +101,28 @@ fi
 
 FORCE_DEPLOY="${BOLSSO_FORCE_DEPLOY:-0}"
 if [ "$REMOTE_SHA" = "$DEPLOYED_SHA" ] && [ "$FORCE_DEPLOY" != "1" ]; then
+  if [ ! -f "$VERIFIED_FILE" ] || [ "$(sed -n '1p' "$VERIFIED_FILE")" != "$REMOTE_SHA" ]; then
+    verify_public_release "$ROOT/current" || exit 1
+    sync_deploy_scripts "$ROOT/current"
+    printf '%s\n' "$REMOTE_SHA" >"$VERIFIED_FILE"
+    log "VERIFIED: deployed release passed external checks"
+  fi
   exit 0
 fi
 
 log "START: deploying $REMOTE_SHA"
 WORK_DIR="$(mktemp -d "$ROOT/state/deploy.XXXXXX")"
-trap 'rm -rf "$WORK_DIR"' EXIT HUP INT TERM
+finish_deploy() {
+  result=$?
+  trap - EXIT HUP INT TERM
+  if [ -f "$ROOT/state/deploy.pending" ]; then
+    recover_deployment || result=1
+  fi
+  rm -rf "$WORK_DIR"
+  exit "$result"
+}
+trap finish_deploy EXIT
+trap 'exit 1' HUP INT TERM
 ARCHIVE="$WORK_DIR/source.tar.gz"
 STAGED="$WORK_DIR/release"
 RELEASE="$ROOT/releases/$REMOTE_SHA"
@@ -83,12 +138,19 @@ if [ ! -d "$STAGED/backend/pb_migrations" ] || [ ! -d "$STAGED/backend/pb_hooks"
   log "ERROR: release does not contain the expected backend directories"
   exit 1
 fi
+for script in pull-deploy.sh pull-deploy-every-2min.sh verify-deployment.sh deployment-recovery.sh; do
+  /bin/sh -n "$STAGED/deploy/nas/$script"
+done
 
 if [ -f "$PRIVATE_TEST_REQUIRED" ] && [ ! -x "$PRIVATE_TEST_RUNNER" ]; then
   log "ERROR: private NAS test runner is missing"
   exit 1
 fi
 if [ -x "$PRIVATE_TEST_RUNNER" ]; then
+  if [ "$("$PRIVATE_TEST_RUNNER" --protocol-version 2>/dev/null || true)" != "3" ]; then
+    log "ERROR: update the NAS-only test bundle before deploying this release"
+    exit 1
+  fi
   log "TEST: running private NAS suite for $REMOTE_SHA"
   if ! "$PRIVATE_TEST_RUNNER" "$STAGED" "$REMOTE_SHA"; then
     log "ERROR: private NAS tests failed; production remains unchanged"
@@ -96,7 +158,8 @@ if [ -x "$PRIVATE_TEST_RUNNER" ]; then
   fi
   log "TEST: private NAS suite passed for $REMOTE_SHA"
 else
-  log "TEST: no private NAS suite is configured"
+  log "ERROR: private NAS suite is required before deployment"
+  exit 1
 fi
 
 if [ ! -d "$RELEASE" ]; then
@@ -105,30 +168,22 @@ fi
 chown -R root:root "$RELEASE"
 chmod -R go-w "$RELEASE"
 
-PREVIOUS_RELEASE=""
-if [ -L "$ROOT/current" ]; then
-  PREVIOUS_RELEASE="$(readlink "$ROOT/current")"
-fi
+capture_deployment
+touch "$ROOT/data/pb_data/.deployment-maintenance"
+: >"$VERIFIED_FILE"
 ln -sfn "$RELEASE" "$ROOT/current"
 sync_runtime_files "$RELEASE"
+export BOLSSO_DEPLOY_MAINTENANCE=1
 
 if ! "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --build --force-recreate --remove-orphans; then
   log "ERROR: container build or start failed"
-  if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
-    ln -sfn "$PREVIOUS_RELEASE" "$ROOT/current"
-    sync_runtime_files "$PREVIOUS_RELEASE"
-    "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans || true
-  else
-    rm -f "$ROOT/current"
-    "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" down || true
-  fi
   exit 1
 fi
 
 HEALTHY=0
 attempt=1
 while [ "$attempt" -le 24 ]; do
-  if curl -fsS --max-time 5 http://127.0.0.1:18090/api/health >/dev/null 2>&1; then
+  if /bin/sh "$RELEASE/deploy/nas/verify-deployment.sh" http://127.0.0.1:18090; then
     HEALTHY=1
     break
   fi
@@ -146,16 +201,23 @@ if [ "$HEALTHY" -ne 1 ]; then
   curl -sS -i --max-time 5 http://127.0.0.1:18091/api/health || true
   printf '\n%s\n' "--- container logs ---"
   "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" logs --no-color --tail=120 || true
-  if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
-    ln -sfn "$PREVIOUS_RELEASE" "$ROOT/current"
-    sync_runtime_files "$PREVIOUS_RELEASE"
-    "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans || true
-  else
-    rm -f "$ROOT/current"
-    "$DOCKER_COMPOSE" -f "$COMPOSE_FILE" down || true
-  fi
   exit 1
 fi
 
-printf '%s\n' "$REMOTE_SHA" >"$STATE_FILE"
-log "DONE: $REMOTE_SHA is healthy"
+sync_deploy_scripts "$RELEASE"
+printf '%s\n' "$REMOTE_SHA" >"$STATE_FILE.next"
+mv "$STATE_FILE.next" "$STATE_FILE"
+# Commit before opening writes: no post-commit failure may restore an old snapshot.
+touch "$ROOT/state/deploy.opening"
+sync
+rm -f "$ROOT/state/deploy.pending"
+rm -f "$ROOT/data/pb_data/.deployment-maintenance"
+export BOLSSO_DEPLOY_MAINTENANCE=0
+"$DOCKER_COMPOSE" -f "$COMPOSE_FILE" up -d --no-build api
+rm -f "$ROOT/state/deploy.opening"
+if ! verify_public_release "$RELEASE"; then
+  log "ERROR: internal deployment succeeded; external verification failed and will retry next run"
+  exit 1
+fi
+printf '%s\n' "$REMOTE_SHA" >"$VERIFIED_FILE"
+log "DONE: $REMOTE_SHA passed internal and external checks"

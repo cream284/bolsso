@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=Gowun+Dodum&amp;family=Playfair+Display:ital,wght@0,600;0,700;1,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=sticky-rules-header-20260825" />
+    <link rel="stylesheet" href="styles.css?v=dues-status-only-20260912" />
   </head>
   <body>
     <section class="login-view" id="loginView">
@@ -114,7 +114,6 @@
             <div class="metrics">
               <article class="metric warm"><span class="metric-icon">◉</span><p>납부 완료</p><strong id="paidMetric">0 / 0<small>명</small></strong><em id="paidMetricNote">등록된 회비 기간 없음</em></article>
               <article class="metric"><span class="metric-icon">♧</span><p>활동 멤버</p><strong><span id="memberMetric">0</span><small>명</small></strong><em>활성 회원 기준</em></article>
-              <article class="metric green"><span class="metric-icon">₩</span><p>공개 회비 잔액</p><strong id="balanceMetric">₩ 0</strong><em>최근 공개 거래 기준</em></article>
             </div>
           </section>
 
@@ -122,7 +121,7 @@
             <div class="section-title"><span class="label-dot"></span><h2>회비 납부 현황</h2><span class="month-label" id="duesPeriodLabel">등록된 기간 없음</span></div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>회원</th><th>구분</th><th>납부 여부</th></tr></thead>
+                <thead><tr><th>회원</th><th>기간</th><th>납부 여부</th></tr></thead>
                 <tbody id="duesRows"><tr><td colspan="3" class="empty-cell">등록된 납부 현황이 없습니다.</td></tr></tbody>
               </table>
             </div>
@@ -132,10 +131,6 @@
             <section id="members" class="panel">
               <div class="panel-header"><div><span class="label-dot"></span><h2>회원 및 운영진</h2></div><span class="month-label" id="memberCountLabel">0명</span></div>
               <div class="record-list" id="memberList"><p class="empty-message">등록된 회원이 없습니다.</p></div>
-            </section>
-            <section class="panel">
-              <div class="panel-header"><div><span class="label-dot"></span><h2>최근 회비 사용</h2></div><span class="month-label">회원 공개 내역</span></div>
-              <div class="record-list" id="transactionList"><p class="empty-message">공개된 거래 내역이 없습니다.</p></div>
             </section>
           </section>
 
@@ -194,7 +189,7 @@
           </section>
 
           <section class="operation-panel" id="chairPanel" hidden>
-            <div class="section-title"><span class="label-dot"></span><h2 id="chairPanelTitle">회장 · 규약과 확정 장부</h2></div>
+            <div class="section-title"><span class="label-dot"></span><h2 id="chairPanelTitle">회장 · 규약과 모임</h2></div>
             <div class="operation-grid chair-grid" id="ruleManagementGrid">
               <form class="management-form" id="ruleManageForm">
                 <h3>운영 규약 개정·게시</h3>
@@ -213,7 +208,7 @@
                 <label class="check-label"><input name="published" type="checkbox" /> 검토 후 회원에게 게시</label>
                 <button class="primary-button" type="submit">새 개정본 저장</button><p class="form-message" data-message></p>
               </form>
-              <section class="management-list"><h3>규약 개정 이력</h3><div id="ruleRevisionList" class="record-list"></div><button class="text-button danger-button" id="deleteOlderRuleRevisions" type="button">현재 게시본만 남기고 이전 이력 삭제</button><p class="form-message" id="ruleRevisionCleanupMessage" role="alert" aria-live="polite"></p><h3 class="subsection-heading">확정 회계 장부 · 읽기 전용</h3><div id="chairLedgerList" class="record-list"></div></section>
+              <section class="management-list"><h3>규약 개정 이력</h3><div id="ruleRevisionList" class="record-list"></div><button class="text-button danger-button" id="deleteOlderRuleRevisions" type="button">현재 게시본만 남기고 이전 이력 삭제</button><p class="form-message" id="ruleRevisionCleanupMessage" role="alert" aria-live="polite"></p></section>
             </div>
             <div class="operation-grid" id="eventManagementGrid">
               <form class="management-form" id="eventCreateForm">
@@ -248,22 +243,12 @@
           </section>
 
           <section class="operation-panel" id="treasurerPanel" hidden>
-            <div class="section-title"><span class="label-dot"></span><h2>총무 · 회비와 수동 장부</h2></div>
-            <p class="operation-note">카카오뱅크 화면은 선택적으로 NAS에만 증빙으로 보관합니다. 송금자 등 민감한 원문은 회원 공개 내역에 포함되지 않습니다.</p>
-            <p class="operation-note admin-finance-delegation-notice" id="adminFinanceDelegationNotice" hidden>관리자 재정 대행 모드입니다. 총무 부재·긴급 상황 등 대행 사유를 남겨야 하며, 회장 장부에 관리자 대행으로 표시됩니다.</p>
+            <div class="section-title"><span class="label-dot"></span><h2>총무 · 회비 납부 관리</h2></div>
+            <p class="operation-note">카카오뱅크 모임통장에서 입금을 확인한 뒤 납부 상태를 표시해 주세요. 자동 연동되지 않으며, 지출과 잔액은 모임통장에서 확인합니다.</p>
             <div class="operation-grid">
-              <form class="management-form" id="policyCreateForm">
-                <h3>연도 회비 정책 등록·정정</h3>
-                <label>적용 연도<input name="year" type="number" min="2020" max="2100" required /></label>
-                <label>월납 금액<input name="monthlyAmount" type="number" min="0" required /></label>
-                <label>연납 금액<input name="annualAmount" type="number" min="0" required /></label>
-                <label>납부일<input name="dueDay" type="number" min="1" max="31" required /></label>
-                <label class="check-label"><input name="active" type="checkbox" checked /> 현재 사용 정책</label>
-                <button class="primary-button" type="submit">정책 등록·정정</button><p class="form-message" data-message></p>
-              </form>
               <form class="management-form" id="periodCreateForm">
                 <h3>회비 기간 생성</h3>
-                <label>정책<select name="policy" id="policySelect" required></select></label>
+                <label>연도<input name="year" type="number" min="2020" max="2100" required /></label>
                 <label>방식<select name="billingType" id="billingType"><option value="monthly">월납</option><option value="annual">연납</option></select></label>
                 <label>월(연납은 연간 전용 기간으로 자동 설정)<input name="month" id="periodMonth" type="number" min="1" max="13" value="1" required /></label>
                 <label>납부 기한<input name="dueDate" type="date" required /></label>
@@ -276,35 +261,14 @@
                 <label>상태<select name="status"><option value="unpaid">미납</option><option value="paid">납부</option><option value="exempt">면제</option></select></label>
                 <button class="primary-button" type="submit">상태 저장</button><p class="form-message" data-message></p>
               </form>
-              <form class="management-form" id="transactionCreateForm">
-                <h3>수입·지출 초안 등록·정정</h3>
-                <label>수정할 초안<select name="transactionId" id="draftTransactionSelect"><option value="">새 초안</option></select></label>
-                <label>거래일<input name="transactedAt" type="date" required /></label>
-                <label>구분<select name="type"><option value="income">수입</option><option value="expense">지출</option></select></label>
-                <label>항목<input name="category" maxlength="80" required /></label>
-                <label>금액<input name="amount" type="number" min="0" required /></label>
-                <label>거래 후 잔액<input name="balanceAfter" type="number" min="0" /></label>
-                <label>내부 메모<textarea name="memo" rows="3"></textarea></label>
-                <label data-admin-finance-delegation hidden>관리자 대행 사유<textarea name="adminDelegationReason" rows="3" maxlength="500" placeholder="예: 총무 부재로 긴급 지출을 대행합니다."></textarea></label>
-                <label>카카오뱅크 증빙(선택)<input name="evidence" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" /></label>
-                <label class="check-label"><input name="visibleToMembers" type="checkbox" checked /> 회원 공개</label>
-                <button class="primary-button" type="submit">초안 장부 저장</button>
-                <button class="text-button danger-button" id="deleteDraftTransaction" type="button">선택 초안 삭제</button><p class="form-message" data-message></p>
-              </form>
-              <form class="management-form" id="transactionConfirmForm">
-                <h3>장부 확정</h3>
-                <label>초안 거래<select name="transactionId" id="transactionSelect" required></select></label>
-                <label data-admin-finance-delegation hidden>관리자 대행 사유<textarea name="adminDelegationReason" rows="3" maxlength="500" placeholder="예: 총무 부재로 장부 확정을 대행합니다."></textarea></label>
-                <button class="primary-button" type="submit">확정 장부로 전환</button><p class="form-message" data-message></p>
-              </form>
             </div>
-            <section class="management-list"><h3>관리자 재정 대행 기록</h3><div id="adminFinanceDelegationList" class="record-list"></div></section>
           </section>
 
           <section class="operation-panel" id="auditPanel" hidden>
             <div class="section-title"><span class="label-dot"></span><h2>감사 로그</h2></div>
             <p class="operation-note">비밀번호·증빙 파일·원문 데이터는 기록하지 않고, 변경 대상과 변경된 항목 이름만 남깁니다.</p>
             <div id="auditList" class="record-list"></div>
+            <button id="openAuditLog" class="text-button" type="button" aria-haspopup="dialog" aria-controls="auditModal" hidden>더 보기</button>
           </section>
         </section>
       </main>
@@ -326,6 +290,18 @@
         <p class="form-message rule-document-message" id="ruleDocumentMessage" role="alert" aria-live="polite"></p>
       </div>
     </dialog>
-    <script src="app.js?v=priority-fixes-20260911"></script>
+    <dialog id="auditModal" class="rules-modal" aria-labelledby="auditModalTitle">
+      <header class="rules-modal-header">
+        <button class="close-dialog" type="button" aria-label="감사 로그 닫기" autofocus>×</button>
+        <span class="eyebrow">AUDIT LOG</span>
+        <h2 id="auditModalTitle">감사 로그</h2>
+      </header>
+      <div class="rules-modal-body">
+        <div id="auditModalList" class="record-list"></div>
+        <p id="auditModalMessage" class="form-message" role="status" aria-live="polite"></p>
+        <button id="loadMoreAudits" class="text-button" type="button" hidden>20건 더 보기</button>
+      </div>
+    </dialog>
+    <script src="app.js?v=audit-modal-20260912"></script>
   </body>
 </html>

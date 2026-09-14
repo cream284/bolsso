@@ -64,7 +64,7 @@ h1 em{font-family:'Playfair Display',serif;color:#df7259;font-weight:600}
 .overview-grid{margin-top:54px}
 .grid-heading{margin-bottom:15px}
 .month-label{margin-left:auto;font:10px 'DM Mono',monospace;color:var(--muted)}
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
 .metric{border:1px solid var(--line);background:white;padding:20px 21px;min-height:149px;position:relative}
 .metric.warm{background:#fff9e8}
 .metric.green{background:#f0f8e9}
@@ -73,7 +73,7 @@ h1 em{font-family:'Playfair Display',serif;color:#df7259;font-weight:600}
 .metric strong{font:27px 'Playfair Display',serif}
 .metric strong small{font:14px 'Gowun Dodum',sans-serif;margin-left:2px}
 .metric em{display:block;color:#92a26e;font-size:10px;font-style:normal;margin-top:11px}
-.bottom-grid{display:grid;grid-template-columns:1.17fr .83fr;gap:25px;margin-top:56px}
+.bottom-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:25px;margin-top:56px}
 .panel{border-top:1px solid var(--ink);padding-top:17px}
 .panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .panel-header>div{display:flex;align-items:center;gap:8px}

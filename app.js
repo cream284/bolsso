@@ -13,6 +13,12 @@ const signupMessage = $('#signupMessage');
 const passwordChangeForm = $('#passwordChangeForm');
 const passwordChangeMessage = $('#passwordChangeMessage');
 const rulesModal = $('#rulesModal');
+const auditModal = $('#auditModal');
+let auditPage = 0;
+let auditGeneration = 0;
+let auditLoading = false;
+let auditSnapshot = '';
+const auditSeen = new Set();
 const sidebar = $('.sidebar');
 const scrollToTopButton = $('#scrollToTop');
 const mobileSidebarMedia = window.matchMedia('(max-width: 800px)');
@@ -76,6 +82,8 @@ function saveAuth(data) {
 }
 
 function clearAuth() {
+  if (auditModal.open) auditModal.close();
+  resetAuditModal();
   auth = null;
   latestRule = null;
   sessionStorage.removeItem(AUTH_KEY);
@@ -223,9 +231,8 @@ function showApp() {
   $('#adminNav').hidden = !isAdmin();
   $('#chairNav').hidden = !(canManageRules() || canManageEvents());
   $('#chairNavLabel').textContent = canManageRules() ? '회장' : '모임·여행';
-  $('#treasurerNav').hidden = !canManageFinance();
-  $('#auditNav').hidden = !(isAdmin() || canManageRules() || canManageFinance());
-  renderAdminFinanceDelegationControls();
+  $('#treasurerNav').hidden = !canManageDues();
+  $('#auditNav').hidden = !(isAdmin() || canManageRules() || canManageDues());
 }
 
 function roleLabel(role) {
@@ -244,29 +251,12 @@ function canManageRules() {
   return isAdmin() || auth?.record?.role === 'chair';
 }
 
-function canManageFinance() {
+function canManageDues() {
   return isAdmin() || auth?.record?.role === 'treasurer';
 }
 
 function canManageEvents() {
   return isAdmin() || auth?.record?.role === 'chair' || auth?.record?.role === 'treasurer';
-}
-
-function isAdminFinanceDelegate() {
-  return isAdmin() && auth?.record?.role !== 'treasurer';
-}
-
-function renderAdminFinanceDelegationControls() {
-  const delegated = isAdminFinanceDelegate();
-  document.querySelectorAll('[data-admin-finance-delegation]').forEach((node) => {
-    node.hidden = !delegated;
-    const input = node.querySelector('textarea');
-    if (input) {
-      input.required = delegated;
-      if (!delegated) input.value = '';
-    }
-  });
-  $('#adminFinanceDelegationNotice').hidden = !delegated;
 }
 
 function memberRoleLabels(member) {
@@ -278,10 +268,6 @@ function memberRoleLabels(member) {
 
 function memberRoleLabel(member) {
   return memberRoleLabels(member).join(' · ');
-}
-
-function formatWon(value) {
-  return `₩ ${Number(value || 0).toLocaleString('ko-KR')}`;
 }
 
 function formatDate(value) {
@@ -648,7 +634,7 @@ function renderDues(period, items) {
   const unit = document.createElement('small');
   unit.textContent = '명';
   metric.append(unit);
-  $('#paidMetricNote').textContent = period ? `1인 ${formatWon(period.amount)}` : '등록된 회비 기간 없음';
+  $('#paidMetricNote').textContent = period ? '총무가 확인한 납부 상태 기준' : '등록된 회비 기간 없음';
 
   if (!currentItems.length) {
     const row = document.createElement('tr');
@@ -666,7 +652,7 @@ function renderDues(period, items) {
     const member = document.createElement('td');
     member.textContent = item.memberName;
     const role = document.createElement('td');
-    role.textContent = roleLabel(item.memberRole);
+    role.textContent = periodText;
     const status = document.createElement('td');
     const badge = document.createElement('span');
     const paymentStatus = item.status || (item.paid ? 'paid' : 'unpaid');
@@ -675,29 +661,6 @@ function renderDues(period, items) {
     status.append(badge);
     row.append(member, role, status);
     rows.append(row);
-  });
-}
-
-function renderTransactions(items) {
-  const list = $('#transactionList');
-  list.replaceChildren();
-  $('#balanceMetric').textContent = formatWon(items[0]?.balanceAfter || 0);
-  if (!items.length) return appendEmpty(list, '공개된 거래 내역이 없습니다.');
-
-  items.slice(0, 8).forEach((item) => {
-    const row = document.createElement('div');
-    row.className = 'record-row transaction-row';
-    const info = document.createElement('span');
-    const title = document.createElement('strong');
-    title.textContent = item.category || (item.type === 'income' ? '수입' : '지출');
-    const date = document.createElement('small');
-    date.textContent = formatDate(item.transactedAt);
-    info.append(title, date);
-    const amount = document.createElement('b');
-    amount.className = item.type === 'income' ? 'income' : 'expense';
-    amount.textContent = `${item.type === 'income' ? '+' : '-'} ${formatWon(item.amount)}`;
-    row.append(info, amount);
-    list.append(row);
   });
 }
 
@@ -796,7 +759,6 @@ async function loadDashboard() {
     ['회원 목록', apiRequest(listPath('member_directory', { sort: '-joinedAt' }))],
     ['회비 기간', apiRequest(listPath('dues_periods', { sort: '-year,-month' }))],
     ['납부 현황', apiRequest(listPath('member_dues_status', { sort: 'memberName' }))],
-    ['회비 사용', apiRequest(listPath('member_transactions', { sort: '-transactedAt', perPage: '20' }))],
     ['모임·여행 일정', apiRequest(listPath('events', { sort: '-scheduledAt' }))],
     ['참석자 명단', apiRequest(listPath('event_attendees'))],
     ['운영 규약', apiRequest(listPath('rules', { sort: '-savedAt', filter: 'published = true', perPage: '1' }))]
@@ -805,11 +767,10 @@ async function loadDashboard() {
   if (!auth || results.some((result) => result.status === 'rejected' && result.reason?.message === 'SESSION_EXPIRED')) return;
 
   const items = results.map((result) => result.status === 'fulfilled' ? result.value.items : []);
-  const [members, periods, dues, transactions, events, attendees, rules] = items;
+  const [members, periods, dues, events, attendees, rules] = items;
   const currentPeriod = periods.find((item) => item.status === 'open') || periods[0] || null;
   renderMembers(members);
   renderDues(currentPeriod, dues);
-  renderTransactions(transactions);
   renderEvents(events, attendees, members);
   renderRule(rules);
 
@@ -824,7 +785,7 @@ async function loadDashboard() {
   $('#lastUpdated').textContent = `불러오지 못한 항목: ${failures.join(', ')}`;
 }
 
-let operationData = { members: [], directory: [], terms: [], policies: [], periods: [], payments: [], transactions: [], audits: [], rules: [], events: [], eventAttendees: [], signupRequests: [] };
+let operationData = { members: [], directory: [], terms: [], periods: [], payments: [], audits: [], rules: [], events: [], eventAttendees: [], signupRequests: [] };
 let ruleRevisionDraft = null;
 let ruleRevisionMetadataManual = false;
 
@@ -910,52 +871,6 @@ function renderTerms(items) {
       actions.append(remove);
       row.append(actions);
     }
-    list.append(row);
-  });
-}
-
-function renderChairLedger(items) {
-  const list = $('#chairLedgerList');
-  list.replaceChildren();
-  if (!items.length) return appendEmpty(list, '확정된 장부가 없습니다.');
-  items.slice(0, 50).forEach((item) => {
-    const row = document.createElement('div');
-    row.className = 'record-row transaction-row';
-    const info = document.createElement('span');
-    const title = document.createElement('strong');
-    title.textContent = item.category;
-    const detail = document.createElement('small');
-    const delegation = item.adminDelegated
-      ? `관리자 대행${item.adminDelegationReason ? `: ${item.adminDelegationReason}` : ''}`
-      : '';
-    detail.textContent = [formatDate(item.transactedAt), item.memo, delegation].filter(Boolean).join(' · ');
-    info.append(title, detail);
-    const amount = document.createElement('b');
-    amount.className = item.type === 'income' ? 'income' : 'expense';
-    amount.textContent = `${item.type === 'income' ? '+' : '-'} ${formatWon(item.amount)}`;
-    row.append(info, amount);
-    list.append(row);
-  });
-}
-
-function renderAdminFinanceDelegations(items) {
-  const list = $('#adminFinanceDelegationList');
-  list.replaceChildren();
-  const delegated = items.filter((item) => item.adminDelegated).slice(0, 20);
-  if (!delegated.length) return appendEmpty(list, '관리자 대행 처리 기록이 없습니다.');
-  delegated.forEach((item) => {
-    const row = document.createElement('div');
-    row.className = 'record-row transaction-row';
-    const info = document.createElement('span');
-    const title = document.createElement('strong');
-    title.textContent = `관리자 대행 · ${item.category}`;
-    const detail = document.createElement('small');
-    detail.textContent = [formatDate(item.transactedAt), item.entryStatus === 'confirmed' ? '확정' : '초안', item.adminDelegationReason].filter(Boolean).join(' · ');
-    info.append(title, detail);
-    const amount = document.createElement('b');
-    amount.className = item.type === 'income' ? 'income' : 'expense';
-    amount.textContent = `${item.type === 'income' ? '+' : '-'} ${formatWon(item.amount)}`;
-    row.append(info, amount);
     list.append(row);
   });
 }
@@ -1049,8 +964,13 @@ async function deleteOlderRuleRevisions() {
 function renderAudit(items) {
   const list = $('#auditList');
   list.replaceChildren();
+  $('#openAuditLog').hidden = items.length <= 5;
+  appendAuditRows(list, items.slice(0, 5));
+}
+
+function appendAuditRows(list, items) {
   if (!items.length) return appendEmpty(list, '열람 가능한 감사 로그가 없습니다.');
-  items.slice(0, 100).forEach((item) => {
+  items.forEach((item) => {
     const row = document.createElement('div');
     row.className = 'record-row';
     const info = document.createElement('span');
@@ -1063,6 +983,51 @@ function renderAudit(items) {
     row.append(info);
     list.append(row);
   });
+}
+
+function resetAuditModal() {
+  auditGeneration++;
+  auditPage = 0;
+  auditLoading = false;
+  auditSeen.clear();
+  $('#auditModalList').replaceChildren();
+  $('#auditModalMessage').textContent = '';
+  $('#loadMoreAudits').hidden = true;
+}
+
+async function loadAuditPage() {
+  if (auditLoading || !auditModal.open || !(isAdmin() || canManageRules() || canManageDues())) return;
+  const generation = auditGeneration;
+  const token = auth?.token;
+  const button = $('#loadMoreAudits');
+  const message = $('#auditModalMessage');
+  auditLoading = true;
+  button.disabled = true;
+  message.textContent = '감사 로그를 불러오는 중…';
+  try {
+    const data = await apiRequest(listPath('audit_logs', {
+      page: String(auditPage + 1), perPage: '20', sort: '-occurredAt,-id',
+      filter: `occurredAt <= "${auditSnapshot}"`
+    }));
+    if (generation !== auditGeneration || token !== auth?.token || !auditModal.open) return;
+    const items = data.items.filter(item => !auditSeen.has(item.id));
+    items.forEach(item => auditSeen.add(item.id));
+    if (items.length || !auditPage) appendAuditRows($('#auditModalList'), items);
+    auditPage++;
+    button.hidden = auditPage >= data.totalPages;
+    button.textContent = '20건 더 보기';
+    message.textContent = `${auditSeen.size}건 표시`;
+  } catch {
+    if (generation !== auditGeneration || !auditModal.open) return;
+    message.textContent = '감사 로그를 불러오지 못했습니다. 다시 시도해 주세요.';
+    button.hidden = false;
+    button.textContent = '다시 시도';
+  } finally {
+    if (generation === auditGeneration) {
+      auditLoading = false;
+      button.disabled = false;
+    }
+  }
 }
 
 function createTemporaryPassword() {
@@ -1164,41 +1129,16 @@ function renderOperationControls() {
     revisionSelect.append(option);
   });
   if (previousRevision && operationData.rules.some((rule) => rule.id === previousRevision)) revisionSelect.value = previousRevision;
-  setOptions($('#policySelect'), operationData.policies, (policy) => `${policy.year}년 정책`);
   setOptions($('#paymentSelect'), operationData.payments, (payment) => {
     const member = members.find((item) => item.id === payment.member);
     const period = operationData.periods.find((item) => item.id === payment.period);
     return `${period?.label || '기간'} · ${member?.name || '회원'} · ${payment.status || 'unpaid'}`;
   });
-  setOptions($('#transactionSelect'), operationData.transactions.filter((item) => item.entryStatus === 'draft'), (item) => `${formatDate(item.transactedAt)} · ${item.category} · ${formatWon(item.amount)}`);
-  const draftSelect = $('#draftTransactionSelect');
-  const selectedDraft = draftSelect.value;
-  draftSelect.replaceChildren();
-  const newDraft = document.createElement('option');
-  newDraft.value = '';
-  newDraft.textContent = '새 초안';
-  draftSelect.append(newDraft);
-  operationData.transactions.filter((item) => item.entryStatus === 'draft').forEach((item) => {
-    const option = document.createElement('option');
-    option.value = item.id;
-    option.textContent = `${formatDate(item.transactedAt)} · ${item.category} · ${formatWon(item.amount)}`;
-    draftSelect.append(option);
-  });
-  if (selectedDraft && ![...draftSelect.options].some((option) => option.value === selectedDraft)) {
-    const missingDraft = document.createElement('option');
-    missingDraft.value = selectedDraft;
-    missingDraft.textContent = '사용할 수 없는 초안 · 다시 선택해 주세요';
-    draftSelect.append(missingDraft);
-  }
-  draftSelect.value = selectedDraft;
   renderMemberRecords(isAdmin() ? members : []);
   renderTerms(operationData.terms);
   renderRuleRevisions(operationData.rules);
-  renderChairLedger(operationData.chairLedger || []);
-  renderAdminFinanceDelegations(operationData.transactions);
   renderAudit(operationData.audits);
   renderSignupRequests(operationData.signupRequests);
-  renderAdminFinanceDelegationControls();
 }
 
 async function loadOperations() {
@@ -1206,10 +1146,10 @@ async function loadOperations() {
   $('#chairPanel').hidden = !(canManageRules() || canManageEvents());
   $('#ruleManagementGrid').hidden = !canManageRules();
   $('#eventManagementGrid').hidden = !canManageEvents();
-  $('#chairPanelTitle').textContent = canManageRules() ? '회장 · 규약과 확정 장부' : '총무 · 모임과 여행';
-  $('#treasurerPanel').hidden = !canManageFinance();
-  $('#auditPanel').hidden = !(isAdmin() || canManageRules() || canManageFinance());
-  if (!isAdmin() && !canManageRules() && !canManageFinance() && !canManageEvents()) return;
+  $('#chairPanelTitle').textContent = canManageRules() ? '회장 · 규약과 모임' : '총무 · 모임과 여행';
+  $('#treasurerPanel').hidden = !canManageDues();
+  $('#auditPanel').hidden = !(isAdmin() || canManageRules() || canManageDues());
+  if (!isAdmin() && !canManageRules() && !canManageDues() && !canManageEvents()) return;
 
   const requests = [
     ['directory', apiRequest(listPath('member_directory', { sort: '-joinedAt' }))],
@@ -1219,21 +1159,18 @@ async function loadOperations() {
     ['members', apiRequest(listPath('members', { sort: '-joinedAt' }))],
     ['signupRequests', apiRequest(listPath('signup_requests', { sort: '-requestedAt', filter: 'status = "pending"' }))]
   );
-  if (canManageFinance()) requests.push(
-    ['policies', apiRequest(listPath('dues_policies', { sort: '-year' }))],
+  if (canManageDues()) requests.push(
     ['periods', apiRequest(listPath('dues_periods', { sort: '-year,-month' }))],
     ['payments', apiRequest(listPath('dues_payments'))],
-    ['transactions', apiRequest(listPath('transactions', { sort: '-transactedAt' }))]
   );
   if (canManageRules()) requests.push(
-    ['chairLedger', apiRequest(listPath('chair_ledger', { sort: '-transactedAt' }))],
     ['rules', apiRequest(listPath('rules', { sort: '-savedAt' }))]
   );
   if (canManageEvents()) requests.push(
     ['events', apiRequest(listPath('events', { sort: '-scheduledAt' }))],
     ['eventAttendees', apiRequest(listPath('event_attendees'))]
   );
-  if (isAdmin() || canManageRules() || canManageFinance()) requests.push(['audits', apiRequest(listPath('audit_logs', { sort: '-occurredAt' }))]);
+  if (isAdmin() || canManageRules() || canManageDues()) requests.push(['audits', apiRequest(listPath('audit_logs', { sort: '-occurredAt,-id', perPage: '6' }))]);
 
   const results = await Promise.allSettled(requests.map(([, request]) => request));
   results.forEach((result, index) => {
@@ -1783,38 +1720,6 @@ $('#ruleManageForm').addEventListener('submit', async (event) => {
   }
 });
 
-$('#policyCreateForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const data = new FormData(form);
-  const year = Number(data.get('year'));
-  const existing = operationData.policies.find((policy) => policy.year === year);
-  const body = {
-    year,
-    monthlyAmount: Number(data.get('monthlyAmount')),
-    annualAmount: Number(data.get('annualAmount')),
-    dueDay: Number(data.get('dueDay')),
-    active: data.get('active') === 'on'
-  };
-  if (!existing) {
-    await submitJsonForm(form, '/api/collections/dues_policies/records', body, '연도 회비 정책을 저장했습니다.');
-    return;
-  }
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    await apiRequest(`/api/collections/dues_policies/records/${encodeURIComponent(existing.id)}`, {
-      method: 'PATCH', body: JSON.stringify(body)
-    });
-    fieldMessage(form, body.active ? '기존 회비 정책을 정정했습니다.' : '회비 정책 사용을 종료했습니다.', true);
-    await refreshAllData();
-  } catch {
-    fieldMessage(form, '회비 정책을 정정하지 못했습니다.');
-  } finally {
-    button.disabled = false;
-  }
-});
-
 $('#billingType').addEventListener('change', (event) => {
   const isAnnual = event.target.value === 'annual';
   const month = $('#periodMonth');
@@ -1826,22 +1731,19 @@ $('#periodCreateForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const data = new FormData(form);
-  const policy = operationData.policies.find((item) => item.id === data.get('policy'));
+  const year = Number(data.get('year'));
   const billingType = String(data.get('billingType'));
   const month = billingType === 'annual' ? 13 : Number(data.get('month'));
-  if (!policy || (billingType === 'monthly' && (month < 1 || month > 12))) return fieldMessage(form, '정책과 월을 확인해 주세요.');
-  const amount = billingType === 'annual' ? policy.annualAmount : policy.monthlyAmount;
-  const label = billingType === 'annual' ? `${policy.year}년 연납 회비` : `${policy.year}년 ${month}월 회비`;
-  const existing = operationData.periods.find((period) => period.year === policy.year && period.month === month && period.billingType === billingType);
+  if (!Number.isInteger(year) || year < 2020 || year > 2100 || !['monthly', 'annual'].includes(billingType) || (billingType === 'monthly' && (!Number.isInteger(month) || month < 1 || month > 12))) return fieldMessage(form, '연도와 월을 확인해 주세요.');
+  const label = billingType === 'annual' ? `${year}년 연납 회비` : `${year}년 ${month}월 회비`;
+  const existing = operationData.periods.find((period) => period.year === year && period.month === month && period.billingType === billingType);
   const body = {
-    year: policy.year,
+    year,
     month,
     label,
-    amount,
     dueDate: toPbDate(String(data.get('dueDate'))),
     status: String(data.get('status')),
-    billingType,
-    policy: policy.id
+    billingType
   };
   if (!existing) {
     await submitJsonForm(form, '/api/collections/dues_periods/records', body, '회비 기간을 만들고 모든 활성 회원의 납부 행을 생성했습니다.');
@@ -1885,108 +1787,6 @@ $('#paymentUpdateForm').addEventListener('submit', async (event) => {
   }
 });
 
-$('#draftTransactionSelect').addEventListener('change', (event) => {
-  const form = $('#transactionCreateForm');
-  const transaction = operationData.transactions.find((item) => item.id === event.target.value && item.entryStatus === 'draft');
-  if (!transaction) {
-    form.reset();
-    form.elements.transactionId.value = '';
-    renderAdminFinanceDelegationControls();
-    return;
-  }
-  form.elements.transactedAt.value = String(transaction.transactedAt || '').slice(0, 10);
-  form.elements.type.value = transaction.type;
-  form.elements.category.value = transaction.category || '';
-  form.elements.amount.value = transaction.amount || 0;
-  form.elements.balanceAfter.value = transaction.balanceAfter || 0;
-  form.elements.memo.value = transaction.memo || '';
-  form.elements.adminDelegationReason.value = transaction.adminDelegationReason || '';
-  form.elements.visibleToMembers.checked = transaction.visibleToMembers === true;
-});
-
-$('#transactionCreateForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const data = new FormData(form);
-  const transactionId = String(data.get('transactionId') || '');
-  if (transactionId && !operationData.transactions.some((item) => item.id === transactionId && item.entryStatus === 'draft')) {
-    return fieldMessage(form, '초안이 삭제되거나 확정되었습니다. 편집 대상을 다시 선택해 주세요.');
-  }
-  const delegationReason = String(data.get('adminDelegationReason') || '').trim();
-  if (isAdminFinanceDelegate() && delegationReason.length < 5) return fieldMessage(form, '관리자 대행 사유를 5자 이상 입력해 주세요.');
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  fieldMessage(form, 'NAS에 장부 초안을 저장 중…');
-  try {
-    const payload = new FormData();
-    payload.set('transactedAt', toPbDate(String(data.get('transactedAt'))));
-    payload.set('type', String(data.get('type')));
-    payload.set('category', String(data.get('category')).trim());
-    payload.set('amount', String(data.get('amount')));
-    payload.set('balanceAfter', String(data.get('balanceAfter') || 0));
-    payload.set('memo', String(data.get('memo')).trim());
-    payload.set('adminDelegationReason', delegationReason);
-    payload.set('visibleToMembers', data.get('visibleToMembers') === 'on' ? 'true' : 'false');
-    const evidence = data.get('evidence');
-    if (evidence instanceof File && evidence.size) payload.set('evidence', evidence);
-    await apiRequest(transactionId
-      ? `/api/collections/transactions/records/${encodeURIComponent(transactionId)}`
-      : '/api/collections/transactions/records', { method: transactionId ? 'PATCH' : 'POST', body: payload });
-    form.reset();
-    fieldMessage(form, transactionId
-      ? '장부 초안을 정정했습니다.'
-      : '장부 초안을 NAS에 저장했습니다. 확정 전에는 회원에게 표시되지 않습니다.', true);
-    await refreshAllData();
-  } catch {
-    fieldMessage(form, '장부 초안을 저장하지 못했습니다.');
-  } finally {
-    button.disabled = false;
-  }
-});
-
-$('#deleteDraftTransaction').addEventListener('click', async () => {
-  const form = $('#transactionCreateForm');
-  const transactionId = String(form.elements.transactionId.value || '');
-  if (!transactionId) return fieldMessage(form, '삭제할 초안을 선택해 주세요.');
-  if (!window.confirm('선택한 장부 초안을 삭제할까요? 확정 장부는 삭제할 수 없습니다.')) return;
-  const button = $('#deleteDraftTransaction');
-  button.disabled = true;
-  try {
-    await apiRequest(`/api/collections/transactions/records/${encodeURIComponent(transactionId)}`, { method: 'DELETE' });
-    form.reset();
-    fieldMessage(form, '장부 초안을 삭제했습니다.', true);
-    await refreshAllData();
-  } catch {
-    fieldMessage(form, '장부 초안을 삭제하지 못했습니다.');
-  } finally {
-    button.disabled = false;
-  }
-});
-
-$('#transactionConfirmForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const data = new FormData(form);
-  const transactionId = String(data.get('transactionId'));
-  if (!transactionId) return fieldMessage(form, '확정할 초안 장부를 선택해 주세요.');
-  const delegationReason = String(data.get('adminDelegationReason') || '').trim();
-  if (isAdminFinanceDelegate() && delegationReason.length < 5) return fieldMessage(form, '관리자 대행 사유를 5자 이상 입력해 주세요.');
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    await apiRequest(`/api/collections/transactions/records/${encodeURIComponent(transactionId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ entryStatus: 'confirmed', adminDelegationReason: delegationReason })
-    });
-    fieldMessage(form, '장부를 확정했습니다. 회장은 읽기 전용으로 확인할 수 있으며 확정 장부는 수정·삭제할 수 없습니다.', true);
-    await refreshAllData();
-  } catch {
-    fieldMessage(form, '장부를 확정하지 못했습니다.');
-  } finally {
-    button.disabled = false;
-  }
-});
-
 $('#logoutButton').addEventListener('click', () => {
   setSidebarOpen(false);
   clearAuth();
@@ -1998,6 +1798,20 @@ $('#openRules').addEventListener('click', () => {
 });
 
 $('#openRuleDocument').addEventListener('click', openProtectedRuleDocument);
+
+$('#openAuditLog').addEventListener('click', () => {
+  if (!(isAdmin() || canManageRules() || canManageDues())) return;
+  resetAuditModal();
+  auditSnapshot = new Date().toISOString().replace('T', ' ');
+  auditModal.showModal();
+  auditModal.querySelector('.rules-modal-body').scrollTop = 0;
+  loadAuditPage();
+});
+$('#loadMoreAudits').addEventListener('click', loadAuditPage);
+auditModal.addEventListener('close', resetAuditModal);
+auditModal.addEventListener('click', event => {
+  if (event.target === auditModal) auditModal.close();
+});
 
 document.querySelectorAll('.close-dialog').forEach((button) => {
   button.addEventListener('click', () => button.closest('dialog').close());

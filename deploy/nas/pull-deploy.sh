@@ -147,7 +147,7 @@ if [ -f "$PRIVATE_TEST_REQUIRED" ] && [ ! -x "$PRIVATE_TEST_RUNNER" ]; then
   exit 1
 fi
 if [ -x "$PRIVATE_TEST_RUNNER" ]; then
-  if [ "$("$PRIVATE_TEST_RUNNER" --protocol-version 2>/dev/null || true)" != "3" ]; then
+  if [ "$("$PRIVATE_TEST_RUNNER" --protocol-version 2>/dev/null || true)" != "4" ]; then
     log "ERROR: update the NAS-only test bundle before deploying this release"
     exit 1
   fi

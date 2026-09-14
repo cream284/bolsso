@@ -245,6 +245,12 @@ th{font:10px 'DM Mono',monospace;color:var(--muted);letter-spacing:.06em;backgro
 .operation-grid .management-list{margin-top:0}
 .chair-grid{grid-template-columns:.8fr 1.2fr}
 .management-list .record-row{padding:12px 0}
+#memberRecordList .record-row{display:grid;grid-template-columns:minmax(0,1fr) 140px;column-gap:24px;row-gap:10px;padding:16px 0}
+#memberRecordList .record-row>span:first-child{display:grid;gap:6px;min-width:0}
+#memberRecordList .record-row small{line-height:1.6;overflow-wrap:anywhere}
+#memberRecordList .record-row>.role-badge{display:inline-flex;flex:none;justify-self:end;align-items:center;justify-content:center;width:max-content;max-width:100%;margin:0}
+#memberRecordList .record-actions{grid-column:1 / -1;justify-content:flex-end}
+@media(max-width:450px){#memberRecordList .record-row{grid-template-columns:minmax(0,1fr) auto;column-gap:12px}}
 .operation-status{font:10px 'DM Mono',monospace;color:var(--muted);margin-left:auto;white-space:nowrap}
 .convert-button{width:max-content;padding:0;text-decoration:underline;text-underline-offset:3px}.subsection-heading{margin-top:26px!important;padding-top:20px;border-top:1px solid var(--line)}
 @media(max-width:800px){.operation-grid,.chair-grid{grid-template-columns:1fr}.operation-panel{margin-top:50px}.management-form,.management-list{padding:18px}}

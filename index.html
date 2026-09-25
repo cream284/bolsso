@@ -26,6 +26,7 @@
           <label>비밀번호<input id="password" name="password" type="password" autocomplete="current-password" required /></label>
           <button class="primary-button login-button" type="submit">로그인</button>
           <p class="form-message" id="loginMessage" role="alert" aria-live="polite"></p>
+          <button class="text-button" id="retrySession" type="button" hidden>저장된 로그인으로 다시 연결</button>
         </form>
         <button class="signup-link" id="openSignup" type="button">회원가입 요청 <span>→</span></button>
         <p class="privacy-note">회원정보와 회비 자료는 GitHub가 아닌 개인 NAS에서만 불러옵니다.</p>
@@ -302,6 +303,7 @@
         <button id="loadMoreAudits" class="text-button" type="button" hidden>20건 더 보기</button>
       </div>
     </dialog>
-    <script src="app.js?v=audit-modal-20260912"></script>
+    <p class="operation-note" id="sessionNotice" role="status" hidden>브라우저에 로그인 정보를 저장하지 못했습니다. 현재 화면에서는 사용할 수 있지만 새로고침하면 다시 로그인해야 할 수 있습니다.</p>
+    <script src="app.js?v=session-recovery-20260925"></script>
   </body>
 </html>

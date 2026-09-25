@@ -24,6 +24,8 @@ const scrollToTopButton = $('#scrollToTop');
 const mobileSidebarMedia = window.matchMedia('(max-width: 800px)');
 
 let auth = loadAuth();
+let sessionRefresh = null;
+let lastSessionCheck = 0;
 let latestRule = null;
 let sidebarPageScroll = 0;
 
@@ -78,7 +80,12 @@ function saveAuth(data) {
       mustChangePassword: data.record.mustChangePassword === true
     }
   };
-  sessionStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+  try {
+    sessionStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+    $('#sessionNotice').hidden = true;
+  } catch {
+    $('#sessionNotice').hidden = false;
+  }
 }
 
 function clearAuth() {
@@ -86,19 +93,23 @@ function clearAuth() {
   resetAuditModal();
   auth = null;
   latestRule = null;
-  sessionStorage.removeItem(AUTH_KEY);
+  try { sessionStorage.removeItem(AUTH_KEY); } catch {}
+  $('#retrySession').hidden = true;
 }
 
 async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
   headers.set('Accept', 'application/json');
   if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
-  if (auth?.token) headers.set('Authorization', auth.token);
+  const requestToken = auth?.token;
+  if (requestToken) headers.set('Authorization', requestToken);
 
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
   if (response.status === 401) {
-    clearAuth();
-    showLogin('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+    if (requestToken && requestToken === auth?.token) {
+      clearAuth();
+      showLogin('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+    }
     throw new Error('SESSION_EXPIRED');
   }
 
@@ -179,9 +190,58 @@ async function login(loginId, password) {
 }
 
 async function refreshAuth() {
-  const data = await apiRequest('/api/collections/members/auth-refresh', { method: 'POST' });
-  if (!data?.record?.active) throw new Error('INACTIVE_MEMBER');
+  const previous = auth;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 15000);
+  let data;
+  try {
+    data = await apiRequest('/api/collections/members/auth-refresh', { method: 'POST', signal: controller.signal });
+  } catch (error) {
+    if (auth !== previous) return false;
+    if (error.status === 403) clearAuth();
+    throw error;
+  } finally { window.clearTimeout(timer); }
+  if (auth !== previous) return false;
+  if (!data?.token || !data?.record?.id || typeof data.record.active !== 'boolean') throw new Error('INVALID_AUTH_RESPONSE');
+  if (!data.record.active) {
+    clearAuth();
+    throw new Error('INACTIVE_MEMBER');
+  }
   saveAuth(data);
+  lastSessionCheck = Date.now();
+  return true;
+}
+
+async function enterAuthenticatedApp() {
+  if (!auth) return;
+  $('#retrySession').hidden = true;
+  if (auth.record.mustChangePassword) return showPasswordChange();
+  try {
+    showApp();
+    await refreshAllData();
+  } catch {
+    if (!auth) return;
+    showLogin('로그인은 유지되어 있습니다. 화면을 불러오지 못했습니다. 다시 시도해 주세요.');
+    $('#retrySession').hidden = false;
+  }
+}
+
+function restoreSession() {
+  if (sessionRefresh) return sessionRefresh;
+  if (!auth) return Promise.resolve();
+  sessionRefresh = (async () => {
+    try {
+      if (await refreshAuth()) await enterAuthenticatedApp();
+    } catch (error) {
+      if (!auth) {
+        showLogin(error.message === 'INACTIVE_MEMBER' ? '사용이 중지된 계정입니다.' : '로그인이 만료되었습니다. 다시 로그인해 주세요.');
+        return;
+      }
+      showLogin('로그인 확인 서버에 연결하지 못했습니다. 저장된 세션은 유지됩니다. 잠시 후 다시 시도해 주세요.');
+      $('#retrySession').hidden = false;
+    } finally { sessionRefresh = null; }
+  })();
+  return sessionRefresh;
 }
 
 function showLogin(message = '') {
@@ -1257,14 +1317,9 @@ loginForm.addEventListener('submit', async (event) => {
   loginMessage.textContent = '';
   try {
     await login(loginId, password);
-    if (auth.record.mustChangePassword) {
-      showPasswordChange();
-      return;
-    }
-    showApp();
-    await refreshAllData();
+    lastSessionCheck = Date.now();
+    await enterAuthenticatedApp();
   } catch (error) {
-    clearAuth();
     loginMessage.textContent = loginErrorMessage(error);
     $('#password').value = '';
     $('#password').focus();
@@ -1834,15 +1889,12 @@ scrollToTopButton.addEventListener('click', () => {
 });
 updateScrollToTopButton();
 
-(async () => {
-  if (!auth) return showLogin();
-  try {
-    await refreshAuth();
-    if (auth.record.mustChangePassword) return showPasswordChange();
-    showApp();
-    await refreshAllData();
-  } catch {
-    clearAuth();
-    showLogin('로그인이 만료되었습니다. 다시 로그인해 주세요.');
-  }
-})();
+$('#retrySession').addEventListener('click', restoreSession);
+function checkSessionWhenActive() {
+  if (auth && !document.hidden && Date.now() - lastSessionCheck >= 60000) restoreSession();
+}
+window.setInterval(checkSessionWhenActive, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', checkSessionWhenActive);
+window.addEventListener('online', checkSessionWhenActive);
+window.addEventListener('pageshow', checkSessionWhenActive);
+if (auth) restoreSession(); else showLogin();
